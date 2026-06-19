@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   CartesianGrid,
@@ -412,21 +412,11 @@ function ResultForm({
           />
         </label>
         <div className="submission-side">
-          <label>
-            Participant
-            <input
-              list="participants"
-              value={participantName}
-              onChange={(event) => setParticipantName(event.target.value)}
-              placeholder="Choose or type a new name"
-              maxLength={30}
-            />
-            <datalist id="participants">
-              {snapshot.participants.map((item) => (
-                <option key={item.id} value={item.name} />
-              ))}
-            </datalist>
-          </label>
+          <ParticipantCombobox
+            participants={snapshot.participants}
+            value={participantName}
+            onChange={setParticipantName}
+          />
           {cleanParticipant && !participant && (
             <p className={canCreate ? "field-hint" : "form-error"}>
               {canCreate
@@ -460,6 +450,162 @@ function ResultForm({
         />
       )}
     </section>
+  );
+}
+
+function ParticipantCombobox({
+  participants,
+  value,
+  onChange,
+}: {
+  participants: Participant[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const inputId = useId();
+  const listboxId = `${inputId}-listbox`;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const participantCountRef = useRef(participants.length);
+  const [open, setOpen] = useState(false);
+  const [filterValue, setFilterValue] = useState<string | null>(null);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const filteredParticipants = useMemo(() => {
+    if (filterValue === null) return participants;
+    const query = normalizeName(filterValue).normalized;
+    if (!query) return participants;
+    return participants.filter((participant) =>
+      normalizeName(participant.name).normalized.includes(query),
+    );
+  }, [filterValue, participants]);
+  const menuOpen = open && filteredParticipants.length > 0;
+
+  useEffect(() => {
+    function closeOnOutsideClick(event: MouseEvent) {
+      if (
+        event.target instanceof Node &&
+        !containerRef.current?.contains(event.target)
+      ) {
+        setOpen(false);
+        setActiveIndex(-1);
+      }
+    }
+
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    return () => document.removeEventListener("mousedown", closeOnOutsideClick);
+  }, []);
+
+  useEffect(() => {
+    if (participantCountRef.current !== participants.length) {
+      participantCountRef.current = participants.length;
+      setOpen(false);
+      setFilterValue(null);
+      setActiveIndex(-1);
+    }
+  }, [participants.length]);
+
+  function chooseParticipant(participant: Participant) {
+    onChange(participant.name);
+    setFilterValue(null);
+    setOpen(false);
+    setActiveIndex(-1);
+  }
+
+  function moveActive(direction: 1 | -1) {
+    if (!menuOpen) {
+      setOpen(true);
+      setFilterValue(null);
+      setActiveIndex(direction === 1 ? 0 : participants.length - 1);
+      return;
+    }
+    setActiveIndex((current) => {
+      const next = current + direction;
+      if (next < 0) return filteredParticipants.length - 1;
+      if (next >= filteredParticipants.length) return 0;
+      return next;
+    });
+  }
+
+  return (
+    <div className="participant-field" ref={containerRef}>
+      <label htmlFor={inputId}>Participant</label>
+      <div className="participant-combobox">
+        <input
+          id={inputId}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={menuOpen}
+          aria-controls={listboxId}
+          aria-activedescendant={
+            menuOpen && activeIndex >= 0
+              ? `${listboxId}-option-${activeIndex}`
+              : undefined
+          }
+          value={value}
+          onFocus={() => {
+            setFilterValue(null);
+            setOpen(true);
+          }}
+          onClick={() => {
+            if (!open) {
+              setFilterValue(null);
+              setOpen(true);
+            }
+          }}
+          onChange={(event) => {
+            onChange(event.target.value);
+            setFilterValue(event.target.value);
+            setOpen(true);
+            setActiveIndex(-1);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              moveActive(1);
+            } else if (event.key === "ArrowUp") {
+              event.preventDefault();
+              moveActive(-1);
+            } else if (
+              event.key === "Enter" &&
+              menuOpen &&
+              activeIndex >= 0
+            ) {
+              event.preventDefault();
+              chooseParticipant(filteredParticipants[activeIndex]);
+            } else if (event.key === "Escape") {
+              setOpen(false);
+              setActiveIndex(-1);
+            }
+          }}
+          placeholder="Choose or type a new name"
+          maxLength={30}
+        />
+        <span className="participant-combobox-arrow" aria-hidden="true">
+          ▾
+        </span>
+        {menuOpen && (
+          <ul className="participant-options" id={listboxId} role="listbox">
+            {filteredParticipants.map((participant, index) => (
+              <li
+                id={`${listboxId}-option-${index}`}
+                key={participant.id}
+                role="option"
+                aria-selected={
+                  findParticipant(participants, value)?.id === participant.id
+                }
+                className={index === activeIndex ? "active" : undefined}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  chooseParticipant(participant);
+                }}
+                onMouseEnter={() => setActiveIndex(index)}
+              >
+                {participant.name}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -507,11 +653,9 @@ function DailyLeaderboard({
 }) {
   const [rows, setRows] = useState(snapshot.dailyLeaderboard);
   const [busy, setBusy] = useState(false);
-  const [expanded, setExpanded] = useState<string | null>(null);
 
   async function changeDate(date: MapTapDate) {
     setBusy(true);
-    setExpanded(null);
     try {
       const response = await api<{ leaderboard: LeaderboardRow[] }>(
         `/api/leaderboards/${snapshot.leaderboard.id}/leaderboard?date=${dateKey(date)}`,
@@ -554,102 +698,64 @@ function DailyLeaderboard({
           </button>
         </div>
       </div>
-      <RankingTable rows={rows} expanded={expanded} onExpanded={setExpanded} />
+      <RankingTable rows={rows} />
     </section>
   );
 }
 
 function RankingTable({
   rows,
-  expanded,
-  onExpanded,
 }: {
   rows: LeaderboardRow[] | PersonalBestRow[];
-  expanded: string | null;
-  onExpanded: (id: string | null) => void;
 }) {
   return (
-    <div className="table-wrap">
-      <table>
+    <div className="table-wrap ranking-table">
+      <table aria-label="Scores with round breakdowns">
         <thead>
           <tr>
             <th>Rank</th>
             <th>Participant</th>
             <th>Score</th>
-            <th>
-              <span className="sr-only">Details</span>
-            </th>
+            <th>Rounds</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <ScoreRow
-              key={row.participant.id}
-              row={row}
-              expanded={expanded === row.participant.id}
-              onToggle={() =>
-                onExpanded(
-                  expanded === row.participant.id ? null : row.participant.id,
-                )
-              }
-            />
-          ))}
+          {rows.map((row) => {
+            return (
+              <tr key={row.participant.id}>
+                <td className="rank">{row.rank ?? "—"}</td>
+                <td>{row.participant.name}</td>
+                <td className="score">{row.result?.finalScore ?? "—"}</td>
+                <td>
+                  {row.result ? (
+                    <span className="inline-rounds">
+                      {row.result.roundScores.map((score, index) => (
+                        <span
+                          className={`round-score ${roundScoreBand(score)}`}
+                          key={index}
+                        >
+                          {score}
+                        </span>
+                      ))}
+                    </span>
+                  ) : (
+                    <span aria-label="No result">—</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
   );
 }
 
-function ScoreRow({
-  row,
-  expanded,
-  onToggle,
-}: {
-  row: LeaderboardRow | PersonalBestRow;
-  expanded: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <>
-      <tr>
-        <td className="rank">{row.rank ?? "—"}</td>
-        <td>{row.participant.name}</td>
-        <td className="score">
-          {row.result ? (
-            row.result.finalScore
-          ) : (
-            <span aria-label="No result">—</span>
-          )}
-        </td>
-        <td>
-          {row.result && (
-            <button
-              className="detail-button"
-              onClick={onToggle}
-              aria-expanded={expanded}
-            >
-              {expanded ? "Hide" : "Rounds"}
-            </button>
-          )}
-        </td>
-      </tr>
-      {expanded && row.result && (
-        <tr className="round-detail">
-          <td colSpan={4}>
-            {row.result.roundScores.map((score, index) => (
-              <span key={index}>
-                Round {index + 1}
-                <strong>{score}</strong>
-              </span>
-            ))}
-            <span>
-              Date<strong>{formatDate(row.result.date)}</strong>
-            </span>
-          </td>
-        </tr>
-      )}
-    </>
-  );
+function roundScoreBand(score: number) {
+  if (score === 100) return "gold";
+  if (score >= 85) return "green";
+  if (score >= 70) return "yellow";
+  return "red";
 }
 
 function ScoreHistory({
@@ -663,7 +769,6 @@ function ScoreHistory({
 }) {
   const [results, setResults] = useState(snapshot.history);
   const [busy, setBusy] = useState(false);
-  const [tableOpen, setTableOpen] = useState(false);
 
   async function changeDays(value: 7 | 30) {
     setBusy(true);
@@ -760,53 +865,11 @@ function ScoreHistory({
       ) : (
         <p className="empty-copy">No results in this period.</p>
       )}
-      <button
-        className="text-button"
-        onClick={() => setTableOpen((value) => !value)}
-      >
-        {tableOpen ? "Hide data table" : "View data table"}
-      </button>
-      {tableOpen && (
-        <div className="table-wrap history-table">
-          <table>
-            <thead>
-              <tr>
-                <th>Participant</th>
-                {dates.map((date) => (
-                  <th key={dateKey(date)}>
-                    {formatDate(date, { year: undefined })}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {participants.map((participant) => (
-                <tr key={participant.id}>
-                  <th>{participant.name}</th>
-                  {dates.map((date) => {
-                    const score = results.find(
-                      (result) =>
-                        result.participantId === participant.id &&
-                        dateKey(result.date) === dateKey(date),
-                    )?.finalScore;
-                    return (
-                      <td key={dateKey(date)}>
-                        {score ?? <span aria-label="No result">—</span>}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
     </section>
   );
 }
 
 function PersonalBests({ rows }: { rows: PersonalBestRow[] }) {
-  const [expanded, setExpanded] = useState<string | null>(null);
   return (
     <section className="card widget best-widget">
       <div className="section-heading">
@@ -815,7 +878,7 @@ function PersonalBests({ rows }: { rows: PersonalBestRow[] }) {
           <h2>All-time highs</h2>
         </div>
       </div>
-      <RankingTable rows={rows} expanded={expanded} onExpanded={setExpanded} />
+      <RankingTable rows={rows} />
     </section>
   );
 }

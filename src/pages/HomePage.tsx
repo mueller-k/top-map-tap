@@ -4,7 +4,6 @@ import type { RecentLeaderboard } from "../../shared/domain";
 import { LEADERBOARD_ID_LENGTH, normalizeName } from "../../shared/domain";
 import { api, ApiRequestError } from "../api";
 import { Turnstile } from "../components/Turnstile";
-import { relativeTime } from "../format";
 
 interface ConfigResponse {
   turnstileSiteKey: string;
@@ -41,18 +40,78 @@ export function HomePage() {
   }
 
   return (
-    <div className="home-layout">
+    <div className="home-page">
       <section className="hero-panel">
         <p className="eyebrow">Free MapTap leaderboards</p>
-        <h1>
-          Claim your MapTap crown.
-        </h1>
+        <h1>Claim your MapTap crown.</h1>
         <p className="lede">
           A shared leaderboard for your group’s daily MapTap results — no
           account necessary.
         </p>
+        {!creating ? (
+          <div className="hero-action">
+            <button
+              className="button primary hero-cta"
+              onClick={() => setCreating(true)}
+            >
+              Create a new leaderboard
+              <span aria-hidden="true">→</span>
+            </button>
+            <p>No account required. Just choose a name and shared password.</p>
+          </div>
+        ) : (
+          <div className="hero-create-form">
+            <CreateLeaderboardForm
+              siteKey={siteKey}
+              onCancel={() => setCreating(false)}
+              onCreated={(id) => navigate(`/d/${id}`)}
+            />
+          </div>
+        )}
+      </section>
+
+      <section className="your-leaderboards" aria-labelledby="recent-heading">
+        <div className="home-section-heading">
+          <div>
+            <p className="eyebrow">Your leaderboards</p>
+            <h2 id="recent-heading">Jump back in</h2>
+          </div>
+          {recent.length ? (
+            <p className="section-note">Recently opened on this device</p>
+          ) : null}
+        </div>
+        {recent.length ? (
+          <ul className="recent-list">
+            {recent.map((leaderboard) => (
+              <li key={leaderboard.id}>
+                <Link to={`/d/${leaderboard.id}`}>
+                  <span className="recent-leaderboard-details">
+                    <span>{leaderboard.name}</span>
+                  </span>
+                  <span className="recent-arrow" aria-hidden="true">
+                    →
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="empty-copy">
+            Leaderboards you open will be saved here for next time.
+          </p>
+        )}
+      </section>
+
+      <section className="open-existing" aria-labelledby="open-heading">
+        <div>
+          <p className="eyebrow">Already have one?</p>
+          <h2 id="open-heading">Open an existing leaderboard</h2>
+          <p className="muted">Paste the link shared with you, or enter its ID.</p>
+        </div>
         <form className="open-form" onSubmit={openLeaderboard}>
-          <label htmlFor="leaderboard-link">Have an existing leaderboard link?</label>
+          <label className="sr-only" htmlFor="leaderboard-link">
+            Leaderboard URL or ID
+          </label>
           <div className="inline-control">
             <input
               id="leaderboard-link"
@@ -65,64 +124,13 @@ export function HomePage() {
               autoCapitalize="none"
               autoCorrect="off"
             />
-            <button className="button primary" type="submit">
-              Open
+            <button className="button ghost" type="submit">
+              Open leaderboard
             </button>
           </div>
           {openError && <p className="form-error">{openError}</p>}
         </form>
       </section>
-
-      <aside className="home-sidebar">
-        <section className="card">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">Your leaderboards</p>
-              <h2>Recent</h2>
-            </div>
-          </div>
-          {recent.length ? (
-            <ul className="recent-list">
-              {recent.map((leaderboard) => (
-                <li key={leaderboard.id}>
-                  <Link to={`/d/${leaderboard.id}`}>
-                    <span>{leaderboard.name}</span>
-                    <small>{relativeTime(leaderboard.lastAccessedAt)}</small>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="empty-copy">
-              Leaderboards you have accessed will be here.
-            </p>
-          )}
-        </section>
-
-        <section className="card create-card">
-          {!creating ? (
-            <>
-              <p className="eyebrow">Create new leaderboard</p>
-              <h2>New</h2>
-              <p className="muted">
-                Choose a name and password. These settings are permanent.
-              </p>
-              <button
-                className="button secondary"
-                onClick={() => setCreating(true)}
-              >
-                Create leaderboard
-              </button>
-            </>
-          ) : (
-            <CreateLeaderboardForm
-              siteKey={siteKey}
-              onCancel={() => setCreating(false)}
-              onCreated={(id) => navigate(`/d/${id}`)}
-            />
-          )}
-        </section>
-      </aside>
     </div>
   );
 }
@@ -185,7 +193,7 @@ function CreateLeaderboardForm({
       <div className="section-heading compact">
         <div>
           <p className="eyebrow">New leaderboard</p>
-          <h2>Create your group</h2>
+          <h2>Create your leaderboard</h2>
         </div>
         <button type="button" className="text-button" onClick={onCancel}>
           Close

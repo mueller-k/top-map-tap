@@ -18,7 +18,12 @@ export default function App() {
         <header className="site-header">
           <Link className="brand" to="/" aria-label="Top Map Tap home">
             <span className="brand-mark" aria-hidden="true">
-              ◎
+              <svg viewBox="0 0 48 48">
+                <path className="brand-crown" d="M15 12 19 7l5 5 5-5 4 5" />
+                <path className="brand-crown" d="M16.5 15h15" />
+                <circle cx="24" cy="29" r="12.5" />
+                <path d="M11.5 29h25M24 16.5c4 3.5 6 7.7 6 12.5s-2 9-6 12.5M24 16.5c-4 3.5-6 7.7-6 12.5s2 9 6 12.5" />
+              </svg>
             </span>
             <span>Top Map Tap</span>
           </Link>
