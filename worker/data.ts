@@ -109,7 +109,7 @@ export async function buildSnapshot(
       currentDate: today,
     },
     participants,
-    leaderboard: buildLeaderboard(
+    dailyLeaderboard: buildLeaderboard(
       participants,
       eligible.filter((result) => dateKey(result.date) === dateKey(selectedDate)),
     ),

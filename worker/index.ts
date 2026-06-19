@@ -139,7 +139,7 @@ async function routeApi(request: Request, env: Env, url: URL): Promise<Response>
       return jsonError('INVALID_DATE', 'Choose a valid calendar date.', 400, url)
     }
     const snapshot = await buildSnapshot(env, authorized.leaderboard, 7, date)
-    return json({ leaderboard: snapshot.leaderboard }, 200, url)
+    return json({ leaderboard: snapshot.dailyLeaderboard }, 200, url)
   }
   if (request.method === 'GET' && action === 'history') {
     const days = url.searchParams.get('days') === '30' ? 30 : 7

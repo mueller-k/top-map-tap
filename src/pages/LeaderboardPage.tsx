@@ -260,7 +260,7 @@ function Leaderboard({
       {hasResults ? (
         <div className="widget-grid">
           <DailyLeaderboard
-            key={`daily-${snapshot.leaderboard.map((row) => row.result?.updatedAt ?? row.participant.id).join("-")}`}
+            key={`daily-${snapshot.dailyLeaderboard.map((row) => row.result?.updatedAt ?? row.participant.id).join("-")}`}
             snapshot={snapshot}
             selectedDate={leaderboardDate}
             onSelectedDate={setLeaderboardDate}
@@ -505,7 +505,7 @@ function DailyLeaderboard({
   selectedDate: MapTapDate;
   onSelectedDate: (date: MapTapDate) => void;
 }) {
-  const [rows, setRows] = useState(snapshot.leaderboard);
+  const [rows, setRows] = useState(snapshot.dailyLeaderboard);
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
 

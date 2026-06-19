@@ -51,7 +51,7 @@ export interface LeaderboardSnapshot {
     currentDate: MapTapDate
   }
   participants: Participant[]
-  leaderboard: LeaderboardRow[]
+  dailyLeaderboard: LeaderboardRow[]
   history: ResultView[]
   personalBests: PersonalBestRow[]
   earliestResultDate: MapTapDate | null
