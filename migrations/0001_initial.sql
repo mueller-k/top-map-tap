@@ -1,6 +1,6 @@
 PRAGMA foreign_keys = ON;
 
-CREATE TABLE dashboards (
+CREATE TABLE leaderboards (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   time_zone TEXT NOT NULL,
@@ -13,17 +13,17 @@ CREATE TABLE dashboards (
 
 CREATE TABLE participants (
   id TEXT PRIMARY KEY,
-  dashboard_id TEXT NOT NULL REFERENCES dashboards(id),
+  leaderboard_id TEXT NOT NULL REFERENCES leaderboards(id),
   display_name TEXT NOT NULL,
   normalized_name TEXT NOT NULL,
   created_at TEXT NOT NULL,
-  UNIQUE (dashboard_id, normalized_name)
+  UNIQUE (leaderboard_id, normalized_name)
 );
-CREATE INDEX participants_dashboard_idx ON participants(dashboard_id);
+CREATE INDEX participants_leaderboard_idx ON participants(leaderboard_id);
 
 CREATE TABLE results (
   id TEXT PRIMARY KEY,
-  dashboard_id TEXT NOT NULL REFERENCES dashboards(id),
+  leaderboard_id TEXT NOT NULL REFERENCES leaderboards(id),
   participant_id TEXT NOT NULL REFERENCES participants(id),
   result_year INTEGER NOT NULL,
   result_month INTEGER NOT NULL CHECK (result_month BETWEEN 1 AND 12),
@@ -38,10 +38,10 @@ CREATE TABLE results (
   source_text TEXT NOT NULL,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  UNIQUE (dashboard_id, participant_id, result_year, result_month, result_day)
+  UNIQUE (leaderboard_id, participant_id, result_year, result_month, result_day)
 );
-CREATE INDEX results_dashboard_date_idx
-  ON results(dashboard_id, result_year, result_month, result_day);
+CREATE INDEX results_leaderboard_date_idx
+  ON results(leaderboard_id, result_year, result_month, result_day);
 CREATE INDEX results_participant_idx ON results(participant_id);
 
 CREATE TABLE sessions (
@@ -53,11 +53,11 @@ CREATE TABLE sessions (
 );
 CREATE INDEX sessions_expiry_idx ON sessions(expires_at);
 
-CREATE TABLE session_dashboards (
+CREATE TABLE session_leaderboards (
   session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-  dashboard_id TEXT NOT NULL REFERENCES dashboards(id),
+  leaderboard_id TEXT NOT NULL REFERENCES leaderboards(id),
   last_accessed_at TEXT NOT NULL,
-  PRIMARY KEY (session_id, dashboard_id)
+  PRIMARY KEY (session_id, leaderboard_id)
 );
-CREATE INDEX session_dashboards_recent_idx
-  ON session_dashboards(session_id, last_accessed_at DESC);
+CREATE INDEX session_leaderboards_recent_idx
+  ON session_leaderboards(session_id, last_accessed_at DESC);

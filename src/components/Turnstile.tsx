@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef } from "react";
 
 declare global {
   interface Window {
@@ -6,15 +6,15 @@ declare global {
       render: (
         element: HTMLElement,
         options: {
-          sitekey: string
-          action: string
-          callback: (token: string) => void
-          'expired-callback': () => void
-          'error-callback': () => void
+          sitekey: string;
+          action: string;
+          callback: (token: string) => void;
+          "expired-callback": () => void;
+          "error-callback": () => void;
         },
-      ) => string
-      remove: (id: string) => void
-    }
+      ) => string;
+      remove: (id: string) => void;
+    };
   }
 }
 
@@ -23,37 +23,42 @@ export function Turnstile({
   resetKey,
   onToken,
 }: {
-  siteKey: string
-  resetKey: number
-  onToken: (token: string) => void
+  siteKey: string;
+  resetKey: number;
+  onToken: (token: string) => void;
 }) {
-  const container = useRef<HTMLDivElement>(null)
+  const container = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let widgetId: string | null = null
-    let cancelled = false
+    let widgetId: string | null = null;
+    let cancelled = false;
     const render = () => {
-      if (cancelled || !container.current) return
+      if (cancelled || !container.current) return;
       if (!window.turnstile) {
-        window.setTimeout(render, 100)
-        return
+        window.setTimeout(render, 100);
+        return;
       }
-      container.current.replaceChildren()
+      container.current.replaceChildren();
       widgetId = window.turnstile.render(container.current, {
         sitekey: siteKey,
-        action: 'create-dashboard',
+        action: "create-leaderboard",
         callback: onToken,
-        'expired-callback': () => onToken(''),
-        'error-callback': () => onToken(''),
-      })
-    }
-    render()
+        "expired-callback": () => onToken(""),
+        "error-callback": () => onToken(""),
+      });
+    };
+    render();
     return () => {
-      cancelled = true
-      if (widgetId && window.turnstile) window.turnstile.remove(widgetId)
-    }
-  }, [siteKey, resetKey, onToken])
+      cancelled = true;
+      if (widgetId && window.turnstile) window.turnstile.remove(widgetId);
+    };
+  }, [siteKey, resetKey, onToken]);
 
-  return <div className="turnstile" ref={container} data-action="turnstile-spin-v1" />
+  return (
+    <div
+      className="turnstile"
+      ref={container}
+      data-action="turnstile-spin-v1"
+    />
+  );
 }
-

@@ -1,15 +1,14 @@
-import { dateKey, type MapTapDate } from '../shared/domain'
+import type { MapTapDate } from '../shared/domain'
 
 export function formatDate(date: MapTapDate, options: Intl.DateTimeFormatOptions = {}) {
   if (!date.isCalendarDate) {
     return `${monthName(date.month)} ${date.day}, ${date.year}`
   }
-  const value = new Date(`${dateKey(date)}T12:00:00Z`)
+  const value = new Date(date.year, date.month - 1, date.day, 12)
   return new Intl.DateTimeFormat(undefined, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
-    timeZone: 'UTC',
     ...options,
   }).format(value)
 }
@@ -24,7 +23,6 @@ export function relativeTime(value: string): string {
 }
 
 function monthName(month: number): string {
-  return new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'UTC' })
-    .format(new Date(Date.UTC(2026, month - 1, 1)))
+  return new Intl.DateTimeFormat('en-US', { month: 'short' })
+    .format(new Date(2026, month - 1, 1, 12))
 }
-

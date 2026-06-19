@@ -1,67 +1,73 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import type { RecentDashboard } from '../../shared/domain'
-import { DASHBOARD_ID_LENGTH, normalizeName } from '../../shared/domain'
-import { api, ApiRequestError } from '../api'
-import { Turnstile } from '../components/Turnstile'
-import { relativeTime } from '../format'
+import { useCallback, useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import type { RecentLeaderboard } from "../../shared/domain";
+import { LEADERBOARD_ID_LENGTH, normalizeName } from "../../shared/domain";
+import { api, ApiRequestError } from "../api";
+import { Turnstile } from "../components/Turnstile";
+import { relativeTime } from "../format";
 
 interface ConfigResponse {
-  turnstileSiteKey: string
+  turnstileSiteKey: string;
 }
 
 export function HomePage() {
-  const navigate = useNavigate()
-  const [recent, setRecent] = useState<RecentDashboard[]>([])
-  const [openValue, setOpenValue] = useState('')
-  const [openError, setOpenError] = useState('')
-  const [creating, setCreating] = useState(false)
-  const [siteKey, setSiteKey] = useState('')
+  const navigate = useNavigate();
+  const [recent, setRecent] = useState<RecentLeaderboard[]>([]);
+  const [openValue, setOpenValue] = useState("");
+  const [openError, setOpenError] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [siteKey, setSiteKey] = useState("");
 
   useEffect(() => {
     void Promise.all([
-      api<{ dashboards: RecentDashboard[] }>('/api/session/recent'),
-      api<ConfigResponse>('/api/config'),
+      api<{ leaderboards: RecentLeaderboard[] }>("/api/session/recent"),
+      api<ConfigResponse>("/api/config"),
     ]).then(([recentResponse, config]) => {
-      setRecent(recentResponse.dashboards)
-      setSiteKey(config.turnstileSiteKey)
-    })
-  }, [])
+      setRecent(recentResponse.leaderboards);
+      setSiteKey(config.turnstileSiteKey);
+    });
+  }, []);
 
-  function openDashboard(event: React.FormEvent) {
-    event.preventDefault()
-    const id = extractDashboardId(openValue)
+  function openLeaderboard(event: React.FormEvent) {
+    event.preventDefault();
+    const id = extractLeaderboardId(openValue);
     if (!id) {
-      setOpenError('Enter a full dashboard URL or 12-character dashboard ID.')
-      return
+      setOpenError(
+        "Enter a full leaderboard URL or 12-character leaderboard ID.",
+      );
+      return;
     }
-    navigate(`/d/${id}`)
+    navigate(`/d/${id}`);
   }
 
   return (
     <div className="home-layout">
       <section className="hero-panel">
-        <p className="eyebrow">Friendly daily MapTap leaderboards</p>
-        <h1>Paste scores.<br />Crown friends.</h1>
+        <p className="eyebrow">Free MapTap leaderboards</p>
+        <h1>
+          Claim your MapTap crown.
+        </h1>
         <p className="lede">
-          A tiny shared dashboard for your group’s daily MapTap results—no accounts,
-          no setup ceremony.
+          A shared leaderboard for your group’s daily MapTap results — no
+          account necessary.
         </p>
-        <form className="open-form" onSubmit={openDashboard}>
-          <label htmlFor="dashboard-link">Open a dashboard</label>
+        <form className="open-form" onSubmit={openLeaderboard}>
+          <label htmlFor="leaderboard-link">Have an existing leaderboard link?</label>
           <div className="inline-control">
             <input
-              id="dashboard-link"
+              id="leaderboard-link"
               value={openValue}
               onChange={(event) => {
-                setOpenValue(event.target.value)
-                setOpenError('')
+                setOpenValue(event.target.value);
+                setOpenError("");
               }}
-              placeholder="Paste a dashboard URL or ID"
+              placeholder="Paste a leaderboard URL or ID"
               autoCapitalize="none"
               autoCorrect="off"
             />
-            <button className="button primary" type="submit">Open</button>
+            <button className="button primary" type="submit">
+              Open
+            </button>
           </div>
           {openError && <p className="form-error">{openError}</p>}
         </form>
@@ -71,38 +77,45 @@ export function HomePage() {
         <section className="card">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">This browser session</p>
-              <h2>Recent dashboards</h2>
+              <p className="eyebrow">Your leaderboards</p>
+              <h2>Recent</h2>
             </div>
           </div>
           {recent.length ? (
             <ul className="recent-list">
-              {recent.map((dashboard) => (
-                <li key={dashboard.id}>
-                  <Link to={`/d/${dashboard.id}`}>
-                    <span>{dashboard.name}</span>
-                    <small>{relativeTime(dashboard.lastAccessedAt)}</small>
+              {recent.map((leaderboard) => (
+                <li key={leaderboard.id}>
+                  <Link to={`/d/${leaderboard.id}`}>
+                    <span>{leaderboard.name}</span>
+                    <small>{relativeTime(leaderboard.lastAccessedAt)}</small>
                   </Link>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="empty-copy">Dashboards you unlock will wait here until your browser session ends.</p>
+            <p className="empty-copy">
+              Leaderboards you have accessed will be here.
+            </p>
           )}
         </section>
 
         <section className="card create-card">
           {!creating ? (
             <>
-              <p className="eyebrow">Start a group</p>
-              <h2>Create a dashboard</h2>
-              <p className="muted">Choose a name, password, and time zone. Those settings are permanent.</p>
-              <button className="button secondary" onClick={() => setCreating(true)}>
-                Create dashboard
+              <p className="eyebrow">Create new leaderboard</p>
+              <h2>New</h2>
+              <p className="muted">
+                Choose a name and password. These settings are permanent.
+              </p>
+              <button
+                className="button secondary"
+                onClick={() => setCreating(true)}
+              >
+                Create leaderboard
               </button>
             </>
           ) : (
-            <CreateDashboardForm
+            <CreateLeaderboardForm
               siteKey={siteKey}
               onCancel={() => setCreating(false)}
               onCreated={(id) => navigate(`/d/${id}`)}
@@ -111,58 +124,59 @@ export function HomePage() {
         </section>
       </aside>
     </div>
-  )
+  );
 }
 
-function CreateDashboardForm({
+function CreateLeaderboardForm({
   siteKey,
   onCancel,
   onCreated,
 }: {
-  siteKey: string
-  onCancel: () => void
-  onCreated: (id: string) => void
+  siteKey: string;
+  onCancel: () => void;
+  onCreated: (id: string) => void;
 }) {
-  const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
-  const [name, setName] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [timeZone, setTimeZone] = useState(browserTimeZone)
-  const [turnstileToken, setTurnstileToken] = useState('')
-  const [resetKey, setResetKey] = useState(0)
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
-  const timeZones = useMemo(() => {
-    try {
-      return Intl.supportedValuesOf('timeZone')
-    } catch {
-      return ['UTC', browserTimeZone]
-    }
-  }, [browserTimeZone])
-  const handleToken = useCallback((token: string) => setTurnstileToken(token), [])
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPasswords, setShowPasswords] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [resetKey, setResetKey] = useState(0);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const handleToken = useCallback(
+    (token: string) => setTurnstileToken(token),
+    [],
+  );
 
   async function submit(event: React.FormEvent) {
-    event.preventDefault()
-    setBusy(true)
-    setError('')
+    event.preventDefault();
+    setBusy(true);
+    setError("");
     try {
-      const response = await api<{ dashboard: { id: string } }>('/api/dashboards', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: normalizeName(name).display,
-          password,
-          confirmPassword,
-          timeZone,
-          turnstileToken,
-        }),
-      })
-      onCreated(response.dashboard.id)
+      const response = await api<{ leaderboard: { id: string } }>(
+        "/api/leaderboards",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            name: normalizeName(name).display,
+            password,
+            confirmPassword,
+            turnstileToken,
+          }),
+        },
+      );
+      onCreated(response.leaderboard.id);
     } catch (requestError) {
-      setError(requestError instanceof ApiRequestError ? requestError.message : 'Couldn’t create dashboard.')
-      setTurnstileToken('')
-      setResetKey((value) => value + 1)
+      setError(
+        requestError instanceof ApiRequestError
+          ? requestError.message
+          : "Couldn’t create leaderboard.",
+      );
+      setTurnstileToken("");
+      setResetKey((value) => value + 1);
     } finally {
-      setBusy(false)
+      setBusy(false);
     }
   }
 
@@ -170,19 +184,26 @@ function CreateDashboardForm({
     <form className="stack-form" onSubmit={submit}>
       <div className="section-heading compact">
         <div>
-          <p className="eyebrow">New dashboard</p>
+          <p className="eyebrow">New leaderboard</p>
           <h2>Create your group</h2>
         </div>
-        <button type="button" className="text-button" onClick={onCancel}>Close</button>
+        <button type="button" className="text-button" onClick={onCancel}>
+          Close
+        </button>
       </div>
       <label>
-        Dashboard name
-        <input value={name} onChange={(event) => setName(event.target.value)} maxLength={60} required />
+        Leaderboard name
+        <input
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          maxLength={60}
+          required
+        />
       </label>
       <label>
         Shared password
         <input
-          type="password"
+          type={showPasswords ? "text" : "password"}
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           minLength={8}
@@ -194,7 +215,7 @@ function CreateDashboardForm({
       <label>
         Confirm password
         <input
-          type="password"
+          type={showPasswords ? "text" : "password"}
           value={confirmPassword}
           onChange={(event) => setConfirmPassword(event.target.value)}
           minLength={8}
@@ -203,37 +224,40 @@ function CreateDashboardForm({
           required
         />
       </label>
-      <label>
-        Time zone
+      <label className="checkbox-field">
         <input
-          list="time-zone-options"
-          value={timeZone}
-          onChange={(event) => setTimeZone(event.target.value)}
-          required
+          type="checkbox"
+          checked={showPasswords}
+          onChange={(event) => setShowPasswords(event.target.checked)}
         />
-        <datalist id="time-zone-options">
-          {timeZones.map((zone) => <option key={zone} value={zone} />)}
-        </datalist>
+        Reveal password
       </label>
-      {siteKey && <Turnstile siteKey={siteKey} resetKey={resetKey} onToken={handleToken} />}
+      {siteKey && (
+        <Turnstile
+          siteKey={siteKey}
+          resetKey={resetKey}
+          onToken={handleToken}
+        />
+      )}
       {error && <p className="form-error">{error}</p>}
       <button className="button primary" disabled={busy || !turnstileToken}>
-        {busy ? 'Creating…' : 'Create dashboard'}
+        {busy ? "Creating…" : "Create leaderboard"}
       </button>
     </form>
-  )
+  );
 }
 
-function extractDashboardId(value: string): string | null {
-  const trimmed = value.trim()
-  const direct = new RegExp(`^[A-Za-z0-9]{${DASHBOARD_ID_LENGTH}}$`)
-  if (direct.test(trimmed)) return trimmed
+function extractLeaderboardId(value: string): string | null {
+  const trimmed = value.trim();
+  const direct = new RegExp(`^[A-Za-z0-9]{${LEADERBOARD_ID_LENGTH}}$`);
+  if (direct.test(trimmed)) return trimmed;
   try {
-    const url = new URL(trimmed)
-    const match = new RegExp(`/d/([A-Za-z0-9]{${DASHBOARD_ID_LENGTH}})$`).exec(url.pathname)
-    return match?.[1] ?? null
+    const url = new URL(trimmed);
+    const match = new RegExp(
+      `/d/([A-Za-z0-9]{${LEADERBOARD_ID_LENGTH}})$`,
+    ).exec(url.pathname);
+    return match?.[1] ?? null;
   } catch {
-    return null
+    return null;
   }
 }
-

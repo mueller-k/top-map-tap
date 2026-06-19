@@ -7,6 +7,12 @@
   "name": "top-map-tap",
   "main": "worker/index.ts",
   "compatibility_date": "2026-06-18",
+  "routes": [
+    {
+      "pattern": "topmaptap.com",
+      "custom_domain": true,
+    },
+  ],
   "assets": {
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
@@ -15,7 +21,7 @@
     {
       "binding": "DB",
       "database_name": "top-map-tap",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "7408561c-2c20-48d9-83de-56186f0ecf74",
       "migrations_dir": "migrations",
     },
   ],
@@ -37,8 +43,8 @@
     },
   ],
   "vars": {
-    "TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
-    "TURNSTILE_EXPECTED_ACTION": "create-dashboard",
+    "TURNSTILE_SITE_KEY": "0x4AAAAAADnXxt4dO0d6BW1t",
+    "TURNSTILE_EXPECTED_ACTION": "create-leaderboard",
   },
   "observability": {
     "enabled": true,

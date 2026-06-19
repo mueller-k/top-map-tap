@@ -1,4 +1,4 @@
-export const DASHBOARD_ID_LENGTH = 12
+export const LEADERBOARD_ID_LENGTH = 12
 export const MAX_PARTICIPANTS = 25
 export const MAX_SOURCE_TEXT_LENGTH = 2_000
 
@@ -44,12 +44,11 @@ export interface PersonalBestRow {
   result: ResultView | null
 }
 
-export interface DashboardSnapshot {
-  dashboard: {
+export interface LeaderboardSnapshot {
+  leaderboard: {
     id: string
     name: string
-    timeZone: string
-    localDate: MapTapDate
+    currentDate: MapTapDate
   }
   participants: Participant[]
   leaderboard: LeaderboardRow[]
@@ -59,7 +58,7 @@ export interface DashboardSnapshot {
   historyDays: 7 | 30
 }
 
-export interface RecentDashboard {
+export interface RecentLeaderboard {
   id: string
   name: string
   lastAccessedAt: string

@@ -30,7 +30,7 @@ pnpm build
    ```
 
 2. Replace the placeholder `database_id` in `wrangler.jsonc`.
-3. Create a managed Turnstile widget for the production `workers.dev` hostname.
+3. Create a managed Turnstile widget for `topmaptap.com`.
 4. Replace `TURNSTILE_SITE_KEY` in `wrangler.jsonc`.
 5. Store the Turnstile secret securely:
 
@@ -45,6 +45,6 @@ pnpm build
    pnpm deploy
    ```
 
-Dashboard settings are intentionally immutable in v1. There are no accounts, deletion tools, or administrative bypass.
+Leaderboard settings are intentionally immutable in v1. There are no accounts, deletion tools, or administrative bypass.
 
 See [CONTEXT.md](./CONTEXT.md) for the project language and [docs/adr](./docs/adr) for architectural decisions.

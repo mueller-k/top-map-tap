@@ -1,13 +1,15 @@
-import { lazy, Suspense } from 'react'
-import { BrowserRouter, Link, Route, Routes } from 'react-router-dom'
-import './App.css'
+import { lazy, Suspense } from "react";
+import { BrowserRouter, Link, Route, Routes } from "react-router-dom";
+import "./App.css";
 
 const HomePage = lazy(() =>
-  import('./pages/HomePage').then((module) => ({ default: module.HomePage })),
-)
-const DashboardPage = lazy(() =>
-  import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })),
-)
+  import("./pages/HomePage").then((module) => ({ default: module.HomePage })),
+);
+const LeaderboardPage = lazy(() =>
+  import("./pages/LeaderboardPage").then((module) => ({
+    default: module.LeaderboardPage,
+  })),
+);
 
 export default function App() {
   return (
@@ -15,7 +17,9 @@ export default function App() {
       <div className="app-shell">
         <header className="site-header">
           <Link className="brand" to="/" aria-label="Top Map Tap home">
-            <span className="brand-mark" aria-hidden="true">◎</span>
+            <span className="brand-mark" aria-hidden="true">
+              ◎
+            </span>
             <span>Top Map Tap</span>
           </Link>
         </header>
@@ -23,27 +27,31 @@ export default function App() {
           <Suspense fallback={<div className="page-loader">Loading…</div>}>
             <Routes>
               <Route path="/" element={<HomePage />} />
-              <Route path="/d/:dashboardId" element={<DashboardPage />} />
+              <Route path="/d/:leaderboardId" element={<LeaderboardPage />} />
               <Route path="*" element={<Unavailable />} />
             </Routes>
           </Suspense>
         </main>
         <footer>
-          Unofficial companion for{' '}
-          <a href="https://maptap.gg" target="_blank" rel="noreferrer">maptap.gg</a>
+          Unofficial companion for{" "}
+          <a href="https://maptap.gg" target="_blank" rel="noreferrer">
+            maptap.gg
+          </a>
         </footer>
       </div>
     </BrowserRouter>
-  )
+  );
 }
 
 function Unavailable() {
   return (
     <section className="center-card">
-      <p className="eyebrow">Dashboard unavailable</p>
+      <p className="eyebrow">Leaderboard unavailable</p>
       <h1>That link doesn’t go anywhere.</h1>
       <p className="muted">Check the shared URL, or head back home.</p>
-      <Link className="button primary" to="/">Back home</Link>
+      <Link className="button primary" to="/">
+        Back home
+      </Link>
     </section>
-  )
+  );
 }

@@ -63,7 +63,7 @@ export async function createSession(env: Env): Promise<Session> {
 export async function rotateSession(
   env: Env,
   previous: Session | null,
-  dashboardId: string,
+  leaderboardId: string,
 ): Promise<Session> {
   const next = await sessionInsertStatement(env)
   const now = new Date().toISOString()
@@ -71,21 +71,21 @@ export async function rotateSession(
   if (previous) {
     statements.push(
       env.DB.prepare(
-        `INSERT INTO session_dashboards (session_id, dashboard_id, last_accessed_at)
-         SELECT ?, dashboard_id, last_accessed_at
-         FROM session_dashboards WHERE session_id = ?
-         ON CONFLICT (session_id, dashboard_id)
+        `INSERT INTO session_leaderboards (session_id, leaderboard_id, last_accessed_at)
+         SELECT ?, leaderboard_id, last_accessed_at
+         FROM session_leaderboards WHERE session_id = ?
+         ON CONFLICT (session_id, leaderboard_id)
          DO UPDATE SET last_accessed_at = excluded.last_accessed_at`,
       ).bind(next.session.id, previous.id),
     )
   }
   statements.push(
     env.DB.prepare(
-      `INSERT INTO session_dashboards (session_id, dashboard_id, last_accessed_at)
+      `INSERT INTO session_leaderboards (session_id, leaderboard_id, last_accessed_at)
        VALUES (?, ?, ?)
-       ON CONFLICT (session_id, dashboard_id)
+       ON CONFLICT (session_id, leaderboard_id)
        DO UPDATE SET last_accessed_at = excluded.last_accessed_at`,
-    ).bind(next.session.id, dashboardId, now),
+    ).bind(next.session.id, leaderboardId, now),
   )
   if (previous) {
     statements.push(env.DB.prepare('DELETE FROM sessions WHERE id = ?').bind(previous.id))
@@ -118,14 +118,14 @@ export async function sessionInsertStatement(env: Env): Promise<{
   }
 }
 
-export async function hasDashboardAccess(
+export async function hasLeaderboardAccess(
   env: Env,
   sessionId: string,
-  dashboardId: string,
+  leaderboardId: string,
 ): Promise<boolean> {
   const row = await env.DB.prepare(
-    'SELECT 1 AS allowed FROM session_dashboards WHERE session_id = ? AND dashboard_id = ?',
-  ).bind(sessionId, dashboardId).first<{ allowed: number }>()
+    'SELECT 1 AS allowed FROM session_leaderboards WHERE session_id = ? AND leaderboard_id = ?',
+  ).bind(sessionId, leaderboardId).first<{ allowed: number }>()
   return row?.allowed === 1
 }
 

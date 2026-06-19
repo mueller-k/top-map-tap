@@ -1,5 +1,5 @@
 import {
-  DASHBOARD_ID_LENGTH,
+  LEADERBOARD_ID_LENGTH,
   MAX_PARTICIPANTS,
   isValidName,
   normalizeName,
@@ -8,18 +8,18 @@ import {
   type ParsedResult,
 } from '../shared/domain'
 import { parseMapTapResult } from '../shared/parser'
-import { hashPassword, randomDashboardId, verifyPassword } from './crypto'
+import { hashPassword, randomLeaderboardId, verifyPassword } from './crypto'
 import {
   buildSnapshot,
-  currentDateInTimeZone,
-  getDashboard,
+  currentDate,
+  getLeaderboard,
   toResultView,
-  type DashboardRow,
+  type LeaderboardRow,
   type ResultRow,
 } from './data'
 import {
   expiredSessionCookie,
-  hasDashboardAccess,
+  hasLeaderboardAccess,
   readSession,
   rotateSession,
   sessionCookie,
@@ -28,7 +28,7 @@ import {
 } from './sessions'
 
 const JSON_LIMIT = 8 * 1024
-const DASHBOARD_ID_PATTERN = new RegExp(`^[A-Za-z0-9]{${DASHBOARD_ID_LENGTH}}$`)
+const LEADERBOARD_ID_PATTERN = new RegExp(`^[A-Za-z0-9]{${LEADERBOARD_ID_LENGTH}}$`)
 const DUMMY_PASSWORD = {
   algorithm: 'PBKDF2-SHA-256' as const,
   iterations: 100_000,
@@ -65,67 +65,70 @@ async function routeApi(request: Request, env: Env, url: URL): Promise<Response>
     return json({ status: 'ok' }, 200, url)
   }
   if (request.method === 'GET' && url.pathname === '/api/config') {
-    return json({ turnstileSiteKey: env.TURNSTILE_SITE_KEY }, 200, url)
+    return json({
+      turnstileSiteKey: env.TURNSTILE_SITE_KEY,
+      turnstileRequired: !isLocalDevelopmentHost(url.hostname),
+    }, 200, url)
   }
   if (request.method === 'GET' && url.pathname === '/api/session/recent') {
     const session = await readSession(request, env)
-    if (!session) return json({ dashboards: [] }, 200, url, expiredSessionCookie(url.protocol === 'https:'))
+    if (!session) return json({ leaderboards: [] }, 200, url, expiredSessionCookie(url.protocol === 'https:'))
     const rows = await env.DB.prepare(
       `SELECT d.id, d.name, sd.last_accessed_at
-       FROM session_dashboards sd
-       JOIN dashboards d ON d.id = sd.dashboard_id
+       FROM session_leaderboards sd
+       JOIN leaderboards d ON d.id = sd.leaderboard_id
        WHERE sd.session_id = ?
        ORDER BY sd.last_accessed_at DESC LIMIT 5`,
     ).bind(session.id).all<{ id: string; name: string; last_accessed_at: string }>()
     return json({
-      dashboards: rows.results.map((row) => ({
+      leaderboards: rows.results.map((row) => ({
         id: row.id,
         name: row.name,
         lastAccessedAt: row.last_accessed_at,
       })),
     }, 200, url)
   }
-  if (request.method === 'POST' && url.pathname === '/api/dashboards') {
+  if (request.method === 'POST' && url.pathname === '/api/leaderboards') {
     assertMutationRequest(request, url)
-    return createDashboard(request, env, url)
+    return createLeaderboard(request, env, url)
   }
 
-  const match = /^\/api\/dashboards\/([^/]+)(?:\/(.*))?$/.exec(url.pathname)
-  if (!match || !DASHBOARD_ID_PATTERN.test(match[1])) {
-    return jsonError('DASHBOARD_UNAVAILABLE', 'Dashboard unavailable.', 404, url)
+  const match = /^\/api\/leaderboards\/([^/]+)(?:\/(.*))?$/.exec(url.pathname)
+  if (!match || !LEADERBOARD_ID_PATTERN.test(match[1])) {
+    return jsonError('LEADERBOARD_UNAVAILABLE', 'Leaderboard unavailable.', 404, url)
   }
-  const dashboardId = match[1]
+  const leaderboardId = match[1]
   const action = match[2] ?? ''
 
   if (request.method === 'POST' && action === 'unlock') {
     assertMutationRequest(request, url)
-    return unlockDashboard(request, env, url, dashboardId)
+    return unlockLeaderboard(request, env, url, leaderboardId)
   }
   if (request.method === 'POST' && action === 'share/verify') {
     assertMutationRequest(request, url)
-    const authorized = await requireAccess(request, env, dashboardId, url)
+    const authorized = await requireAccess(request, env, leaderboardId, url)
     if (authorized instanceof Response) return authorized
-    return verifySharePassword(request, env, url, authorized.dashboard)
+    return verifySharePassword(request, env, url, authorized.leaderboard)
   }
 
-  const authorized = await requireAccess(request, env, dashboardId, url)
+  const authorized = await requireAccess(request, env, leaderboardId, url)
   if (authorized instanceof Response) return authorized
 
   if (request.method === 'GET' && action === 'bootstrap') {
     const requestedDate = parseDateKey(url.searchParams.get('date') ?? '')
-    const localDate = currentDateInTimeZone(authorized.dashboard.time_zone)
+    const today = currentDate()
     const leaderboardDate =
-      requestedDate?.isCalendarDate && compareDateParts(requestedDate, localDate) <= 0
+      requestedDate?.isCalendarDate && compareDateParts(requestedDate, today) <= 0
         ? requestedDate
         : undefined
     const historyDays = url.searchParams.get('days') === '30' ? 30 : 7
     if (url.searchParams.get('touch') === '1') {
       await env.DB.prepare(
-        'UPDATE session_dashboards SET last_accessed_at = ? WHERE session_id = ? AND dashboard_id = ?',
-      ).bind(new Date().toISOString(), authorized.session.id, dashboardId).run()
+        'UPDATE session_leaderboards SET last_accessed_at = ? WHERE session_id = ? AND leaderboard_id = ?',
+      ).bind(new Date().toISOString(), authorized.session.id, leaderboardId).run()
     }
     return json(
-      await buildSnapshot(env, authorized.dashboard, historyDays, leaderboardDate),
+      await buildSnapshot(env, authorized.leaderboard, historyDays, leaderboardDate),
       200,
       url,
     )
@@ -135,26 +138,26 @@ async function routeApi(request: Request, env: Env, url: URL): Promise<Response>
     if (!date?.isCalendarDate) {
       return jsonError('INVALID_DATE', 'Choose a valid calendar date.', 400, url)
     }
-    const snapshot = await buildSnapshot(env, authorized.dashboard, 7, date)
+    const snapshot = await buildSnapshot(env, authorized.leaderboard, 7, date)
     return json({ leaderboard: snapshot.leaderboard }, 200, url)
   }
   if (request.method === 'GET' && action === 'history') {
     const days = url.searchParams.get('days') === '30' ? 30 : 7
-    const snapshot = await buildSnapshot(env, authorized.dashboard, days)
+    const snapshot = await buildSnapshot(env, authorized.leaderboard, days)
     return json({ history: snapshot.history, historyDays: days }, 200, url)
   }
   if (request.method === 'GET' && action === 'personal-bests') {
-    const snapshot = await buildSnapshot(env, authorized.dashboard)
+    const snapshot = await buildSnapshot(env, authorized.leaderboard)
     return json({ personalBests: snapshot.personalBests }, 200, url)
   }
   if (request.method === 'POST' && action === 'results') {
     assertMutationRequest(request, url)
-    return submitResult(request, env, url, authorized.dashboard)
+    return submitResult(request, env, url, authorized.leaderboard)
   }
   return jsonError('NOT_FOUND', 'Not found.', 404, url)
 }
 
-async function createDashboard(request: Request, env: Env, url: URL): Promise<Response> {
+async function createLeaderboard(request: Request, env: Env, url: URL): Promise<Response> {
   const ip = clientIp(request)
   const limit = await env.CREATE_RATE_LIMIT.limit({ key: ip })
   if (!limit.success) return jsonError('RATE_LIMITED', 'Try again shortly.', 429, url)
@@ -162,10 +165,9 @@ async function createDashboard(request: Request, env: Env, url: URL): Promise<Re
   const name = stringField(body, 'name')
   const password = stringField(body, 'password')
   const confirmPassword = stringField(body, 'confirmPassword')
-  const timeZone = stringField(body, 'timeZone')
   const turnstileToken = stringField(body, 'turnstileToken')
   if (!isValidName(name, 60)) {
-    return jsonError('INVALID_NAME', 'Dashboard name must be 1–60 characters.', 400, url)
+    return jsonError('INVALID_NAME', 'Leaderboard name must be 1–60 characters.', 400, url)
   }
   if (
     password !== confirmPassword ||
@@ -174,15 +176,14 @@ async function createDashboard(request: Request, env: Env, url: URL): Promise<Re
   ) {
     return jsonError('INVALID_PASSWORD', 'Passwords must match and be 8–128 characters.', 400, url)
   }
-  if (!isTimeZone(timeZone)) {
-    return jsonError('INVALID_TIME_ZONE', 'Choose a valid time zone.', 400, url)
-  }
-  const turnstile = await verifyTurnstile(request, env, turnstileToken)
-  if (!turnstile) {
-    return jsonError('TURNSTILE_FAILED', 'Verification expired. Please try again.', 400, url)
+  if (!isLocalDevelopmentHost(url.hostname)) {
+    const turnstile = await verifyTurnstile(request, env, turnstileToken)
+    if (!turnstile) {
+      return jsonError('TURNSTILE_FAILED', 'Verification expired. Please try again.', 400, url)
+    }
   }
 
-  const dashboardId = randomDashboardId()
+  const leaderboardId = randomLeaderboardId()
   const cleanedName = normalizeName(name).display
   const passwordHash = await hashPassword(password)
   const now = new Date().toISOString()
@@ -191,14 +192,13 @@ async function createDashboard(request: Request, env: Env, url: URL): Promise<Re
   const session = existingSession ?? sessionInsert!.session
   const statements: D1PreparedStatement[] = [
     env.DB.prepare(
-      `INSERT INTO dashboards
-       (id, name, time_zone, password_algorithm, password_iterations,
-        password_salt, password_hash, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO leaderboards
+       (id, name, password_algorithm, password_iterations, password_salt,
+        password_hash, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
-      dashboardId,
+      leaderboardId,
       cleanedName,
-      timeZone,
       passwordHash.algorithm,
       passwordHash.iterations,
       passwordHash.salt,
@@ -209,36 +209,36 @@ async function createDashboard(request: Request, env: Env, url: URL): Promise<Re
   if (sessionInsert) statements.push(sessionInsert.statement)
   statements.push(
     env.DB.prepare(
-      'INSERT INTO session_dashboards (session_id, dashboard_id, last_accessed_at) VALUES (?, ?, ?)',
-    ).bind(session.id, dashboardId, now),
+      'INSERT INTO session_leaderboards (session_id, leaderboard_id, last_accessed_at) VALUES (?, ?, ?)',
+    ).bind(session.id, leaderboardId, now),
   )
   await env.DB.batch(statements)
   return json(
-    { dashboard: { id: dashboardId, name: cleanedName } },
+    { leaderboard: { id: leaderboardId, name: cleanedName } },
     201,
     url,
     sessionInsert ? sessionCookie(session, url.protocol === 'https:') : undefined,
   )
 }
 
-async function unlockDashboard(
+async function unlockLeaderboard(
   request: Request,
   env: Env,
   url: URL,
-  dashboardId: string,
+  leaderboardId: string,
 ): Promise<Response> {
   const body = await readJson(request)
   const password = stringField(body, 'password')
-  const dashboard = await getDashboard(env, dashboardId)
-  const valid = await verifyPassword(password, dashboard ? passwordRecord(dashboard) : DUMMY_PASSWORD)
-  if (!dashboard || !valid) {
-    const rate = await env.PASSWORD_RATE_LIMIT.limit({ key: `${dashboardId}:${clientIp(request)}` })
+  const leaderboard = await getLeaderboard(env, leaderboardId)
+  const valid = await verifyPassword(password, leaderboard ? passwordRecord(leaderboard) : DUMMY_PASSWORD)
+  if (!leaderboard || !valid) {
+    const rate = await env.PASSWORD_RATE_LIMIT.limit({ key: `${leaderboardId}:${clientIp(request)}` })
     return rate.success
-      ? jsonError('UNLOCK_FAILED', 'Couldn’t unlock dashboard.', 401, url)
+      ? jsonError('UNLOCK_FAILED', 'Couldn’t unlock leaderboard.', 401, url)
       : jsonError('RATE_LIMITED', 'Too many attempts. Try again shortly.', 429, url)
   }
   const previous = await readSession(request, env, false)
-  const session = await rotateSession(env, previous, dashboardId)
+  const session = await rotateSession(env, previous, leaderboardId)
   return json(
     { unlocked: true },
     200,
@@ -251,13 +251,13 @@ async function verifySharePassword(
   request: Request,
   env: Env,
   url: URL,
-  dashboard: DashboardRow,
+  leaderboard: LeaderboardRow,
 ): Promise<Response> {
   const body = await readJson(request)
   const password = stringField(body, 'password')
-  if (!(await verifyPassword(password, passwordRecord(dashboard)))) {
+  if (!(await verifyPassword(password, passwordRecord(leaderboard)))) {
     const rate = await env.PASSWORD_RATE_LIMIT.limit({
-      key: `${dashboard.id}:${clientIp(request)}`,
+      key: `${leaderboard.id}:${clientIp(request)}`,
     })
     return rate.success
       ? jsonError('VERIFY_FAILED', 'Couldn’t verify password.', 401, url)
@@ -270,7 +270,7 @@ async function submitResult(
   request: Request,
   env: Env,
   url: URL,
-  dashboard: DashboardRow,
+  leaderboard: LeaderboardRow,
 ): Promise<Response> {
   const limit = await env.SUBMIT_RATE_LIMIT.limit({ key: clientIp(request) })
   if (!limit.success) return jsonError('RATE_LIMITED', 'Try again shortly.', 429, url)
@@ -283,29 +283,29 @@ async function submitResult(
   if ((participantId ? 1 : 0) + (newParticipantName ? 1 : 0) !== 1) {
     return jsonError('INVALID_PARTICIPANT', 'Choose or create one participant.', 400, url)
   }
-  const localDate = currentDateInTimeZone(dashboard.time_zone)
-  const parsed = parseMapTapResult(sourceText, localDate.year)
+  const today = currentDate()
+  const parsed = parseMapTapResult(sourceText, today.year)
   if (!parsed.ok) return jsonError(parsed.code, parsed.message, 400, url)
 
   const participant = await resolveParticipant(
     env,
-    dashboard.id,
+    leaderboard.id,
     participantId,
     newParticipantName,
   )
   if ('error' in participant) return jsonError(participant.error, participant.message, 400, url)
 
   const existing = participant.id
-    ? await findExistingResult(env, dashboard.id, participant.id, parsed.value)
+    ? await findExistingResult(env, leaderboard.id, participant.id, parsed.value)
     : null
   if (existing && sameScores(existing, parsed.value)) {
     return json({
       status: 'unchanged',
       snapshot: await buildSnapshot(
         env,
-        dashboard,
+        leaderboard,
         historyDays,
-        visibleLeaderboardDate(parsed.value.date, localDate),
+        visibleLeaderboardDate(parsed.value.date, today),
       ),
     }, 200, url)
   }
@@ -338,11 +338,11 @@ async function submitResult(
       statements.push(
         env.DB.prepare(
           `INSERT OR IGNORE INTO participants
-           (id, dashboard_id, display_name, normalized_name, created_at)
+           (id, leaderboard_id, display_name, normalized_name, created_at)
            VALUES (?, ?, ?, ?, ?)`,
         ).bind(
           participantUuid,
-          dashboard.id,
+          leaderboard.id,
           participant.display,
           participant.normalized,
           now,
@@ -352,15 +352,15 @@ async function submitResult(
     statements.push(
       env.DB.prepare(
         `INSERT OR IGNORE INTO results
-         (id, dashboard_id, participant_id, result_year, result_month, result_day,
+         (id, leaderboard_id, participant_id, result_year, result_month, result_day,
           is_calendar_date, round_1, round_2, round_3, round_4, round_5,
           final_score, source_text, created_at, updated_at)
          SELECT ?, ?, p.id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
          FROM participants p
-         WHERE p.dashboard_id = ? AND p.normalized_name = ?`,
+         WHERE p.leaderboard_id = ? AND p.normalized_name = ?`,
       ).bind(
         resultId,
-        dashboard.id,
+        leaderboard.id,
         parsed.value.date.year,
         parsed.value.date.month,
         parsed.value.date.day,
@@ -370,18 +370,18 @@ async function submitResult(
         parsed.value.sourceText,
         now,
         now,
-        dashboard.id,
+        leaderboard.id,
         participant.normalized,
       ),
     )
     await env.DB.batch(statements)
     const actualParticipant = await env.DB.prepare(
-      'SELECT id FROM participants WHERE dashboard_id = ? AND normalized_name = ?',
-    ).bind(dashboard.id, participant.normalized).first<{ id: string }>()
+      'SELECT id FROM participants WHERE leaderboard_id = ? AND normalized_name = ?',
+    ).bind(leaderboard.id, participant.normalized).first<{ id: string }>()
     if (!actualParticipant) throw new Error('Participant insert did not resolve')
     const raced = await findExistingResult(
       env,
-      dashboard.id,
+      leaderboard.id,
       actualParticipant.id,
       parsed.value,
     )
@@ -396,16 +396,16 @@ async function submitResult(
     status: existing ? 'replaced' : 'created',
     snapshot: await buildSnapshot(
       env,
-      dashboard,
+      leaderboard,
       historyDays,
-      visibleLeaderboardDate(parsed.value.date, localDate),
+      visibleLeaderboardDate(parsed.value.date, today),
     ),
   }, 200, url)
 }
 
 async function resolveParticipant(
   env: Env,
-  dashboardId: string,
+  leaderboardId: string,
   participantId: string | null,
   newName: string | null,
 ): Promise<
@@ -415,8 +415,8 @@ async function resolveParticipant(
 > {
   if (participantId) {
     const row = await env.DB.prepare(
-      'SELECT id, display_name, normalized_name FROM participants WHERE id = ? AND dashboard_id = ?',
-    ).bind(participantId, dashboardId).first<{
+      'SELECT id, display_name, normalized_name FROM participants WHERE id = ? AND leaderboard_id = ?',
+    ).bind(participantId, leaderboardId).first<{
       id: string
       display_name: string
       normalized_name: string
@@ -430,12 +430,12 @@ async function resolveParticipant(
   }
   const name = normalizeName(newName)
   const existing = await env.DB.prepare(
-    'SELECT id, display_name FROM participants WHERE dashboard_id = ? AND normalized_name = ?',
-  ).bind(dashboardId, name.normalized).first<{ id: string; display_name: string }>()
+    'SELECT id, display_name FROM participants WHERE leaderboard_id = ? AND normalized_name = ?',
+  ).bind(leaderboardId, name.normalized).first<{ id: string; display_name: string }>()
   if (existing) return { id: existing.id, display: existing.display_name, normalized: name.normalized }
   const count = await env.DB.prepare(
-    'SELECT COUNT(*) AS count FROM participants WHERE dashboard_id = ?',
-  ).bind(dashboardId).first<{ count: number }>()
+    'SELECT COUNT(*) AS count FROM participants WHERE leaderboard_id = ?',
+  ).bind(leaderboardId).first<{ count: number }>()
   if ((count?.count ?? 0) >= MAX_PARTICIPANTS) {
     return { error: 'PARTICIPANT_LIMIT', message: 'Participant limit reached.' }
   }
@@ -444,7 +444,7 @@ async function resolveParticipant(
 
 async function findExistingResult(
   env: Env,
-  dashboardId: string,
+  leaderboardId: string,
   participantId: string,
   parsed: ParsedResult,
 ): Promise<ResultRow | null> {
@@ -453,10 +453,10 @@ async function findExistingResult(
             r.result_day, r.is_calendar_date, r.round_1, r.round_2, r.round_3,
             r.round_4, r.round_5, r.final_score, r.created_at, r.updated_at
      FROM results r JOIN participants p ON p.id = r.participant_id
-     WHERE r.dashboard_id = ? AND r.participant_id = ?
+     WHERE r.leaderboard_id = ? AND r.participant_id = ?
        AND r.result_year = ? AND r.result_month = ? AND r.result_day = ?`,
   ).bind(
-    dashboardId,
+    leaderboardId,
     participantId,
     parsed.date.year,
     parsed.date.month,
@@ -473,22 +473,22 @@ function sameScores(row: ResultRow, parsed: ParsedResult): boolean {
 async function requireAccess(
   request: Request,
   env: Env,
-  dashboardId: string,
+  leaderboardId: string,
   url: URL,
-): Promise<{ session: Session; dashboard: DashboardRow } | Response> {
+): Promise<{ session: Session; leaderboard: LeaderboardRow } | Response> {
   const session = await readSession(request, env)
-  if (!session || !(await hasDashboardAccess(env, session.id, dashboardId))) {
+  if (!session || !(await hasLeaderboardAccess(env, session.id, leaderboardId))) {
     return jsonError(
       'ACCESS_REQUIRED',
-      'Enter the dashboard password.',
+      'Enter the leaderboard password.',
       401,
       url,
       session ? undefined : expiredSessionCookie(url.protocol === 'https:'),
     )
   }
-  const dashboard = await getDashboard(env, dashboardId)
-  if (!dashboard) return jsonError('DASHBOARD_UNAVAILABLE', 'Dashboard unavailable.', 404, url)
-  return { session, dashboard }
+  const leaderboard = await getLeaderboard(env, leaderboardId)
+  if (!leaderboard) return jsonError('LEADERBOARD_UNAVAILABLE', 'Leaderboard unavailable.', 404, url)
+  return { session, leaderboard }
 }
 
 async function verifyTurnstile(
@@ -515,12 +515,21 @@ async function verifyTurnstile(
     (!hostname || hostname === requestHostname)
 }
 
-function passwordRecord(dashboard: DashboardRow) {
+export function isLocalDevelopmentHost(hostname: string): boolean {
+  return hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    hostname === '127.0.0.1' ||
+    hostname === '0.0.0.0' ||
+    hostname === '::1' ||
+    hostname === '[::1]'
+}
+
+function passwordRecord(leaderboard: LeaderboardRow) {
   return {
-    algorithm: dashboard.password_algorithm,
-    iterations: dashboard.password_iterations,
-    salt: dashboard.password_salt,
-    hash: dashboard.password_hash,
+    algorithm: leaderboard.password_algorithm,
+    iterations: leaderboard.password_iterations,
+    salt: leaderboard.password_salt,
+    hash: leaderboard.password_hash,
   }
 }
 
@@ -574,24 +583,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function isTimeZone(value: string): boolean {
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: value }).format()
-    return true
-  } catch {
-    return false
-  }
-}
-
 function clientIp(request: Request): string {
   return request.headers.get('CF-Connecting-IP') ?? 'local'
 }
 
 function visibleLeaderboardDate(
   date: MapTapDate,
-  localDate: MapTapDate,
+  currentDate: MapTapDate,
 ): MapTapDate | undefined {
-  return date.isCalendarDate && compareDateParts(date, localDate) <= 0 ? date : undefined
+  return date.isCalendarDate && compareDateParts(date, currentDate) <= 0 ? date : undefined
 }
 
 function compareDateParts(left: MapTapDate, right: MapTapDate): number {

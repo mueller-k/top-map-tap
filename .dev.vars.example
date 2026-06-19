@@ -1,2 +1,3 @@
-# Copy to .dev.vars for local development. This is Cloudflare's public test key.
+# Copy to .dev.vars for local development. This are Cloudflare's public test keys.
+TURNSTILE_SITE_KEY=1x00000000000000000000AA
 TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA

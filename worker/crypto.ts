@@ -40,7 +40,7 @@ export function randomToken(byteLength = 32): string {
   return toBase64Url(randomBytes(byteLength))
 }
 
-export function randomDashboardId(): string {
+export function randomLeaderboardId(): string {
   const alphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
   const bytes = randomBytes(12)
   return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('')
