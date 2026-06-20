@@ -10,6 +10,11 @@ const LeaderboardPage = lazy(() =>
     default: module.LeaderboardPage,
   })),
 );
+const CreateLeaderboardPage = lazy(() =>
+  import("./pages/CreateLeaderboardPage").then((module) => ({
+    default: module.CreateLeaderboardPage,
+  })),
+);
 
 export default function App() {
   return (
@@ -32,6 +37,7 @@ export default function App() {
           <Suspense fallback={<div className="page-loader">Loading…</div>}>
             <Routes>
               <Route path="/" element={<HomePage />} />
+              <Route path="/create/*" element={<CreateLeaderboardPage />} />
               <Route path="/d/:leaderboardId" element={<LeaderboardPage />} />
               <Route path="*" element={<Unavailable />} />
             </Routes>

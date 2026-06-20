@@ -26,6 +26,11 @@ import {
   type ResultView,
 } from "../../shared/domain";
 import { parseMapTapResult } from "../../shared/parser";
+import {
+  scoreHistoryTooltipSortKey,
+  scoreHistoryYAxisMinimum,
+  scoreHistoryYAxisTicks,
+} from "../../shared/score-history";
 import { api, ApiRequestError } from "../api";
 import { formatDate } from "../format";
 
@@ -705,8 +710,10 @@ function DailyLeaderboard({
 
 function RankingTable({
   rows,
+  showDate = false,
 }: {
   rows: LeaderboardRow[] | PersonalBestRow[];
+  showDate?: boolean;
 }) {
   return (
     <div className="table-wrap ranking-table">
@@ -717,6 +724,7 @@ function RankingTable({
             <th>Participant</th>
             <th>Score</th>
             <th>Rounds</th>
+            {showDate && <th>MapTap date</th>}
           </tr>
         </thead>
         <tbody>
@@ -742,6 +750,11 @@ function RankingTable({
                     <span aria-label="No result">—</span>
                   )}
                 </td>
+                {showDate && (
+                  <td className="result-date">
+                    {row.result ? formatDate(row.result.date) : "—"}
+                  </td>
+                )}
               </tr>
             );
           })}
@@ -788,6 +801,12 @@ function ScoreHistory({
     results.some((result) => result.participantId === participant.id),
   );
   const dates = dateRange(snapshot.leaderboard.currentDate, days);
+  const visibleDates = new Set(dates.map(dateKey));
+  const yAxisMinimum = scoreHistoryYAxisMinimum(
+    results
+      .filter((result) => visibleDates.has(dateKey(result.date)))
+      .map((result) => result.finalScore),
+  );
   const chartData = dates.map((date) => {
     const point: Record<string, string | number | null> = {
       date: formatDate(date, { year: undefined }),
@@ -833,14 +852,18 @@ function ScoreHistory({
               >
                 <CartesianGrid strokeDasharray="3 5" vertical={false} />
                 <XAxis dataKey="date" tick={{ fontSize: 12 }} minTickGap={24} />
-                <YAxis domain={[0, 1000]} tick={{ fontSize: 12 }} />
-                <Tooltip />
+                <YAxis
+                  domain={[yAxisMinimum, 1000]}
+                  ticks={scoreHistoryYAxisTicks(yAxisMinimum)}
+                  tick={{ fontSize: 12 }}
+                />
+                <Tooltip itemSorter={scoreHistoryTooltipSortKey} />
                 {participants.map((participant, index) => (
                   <Line
                     key={participant.id}
                     dataKey={participant.id}
                     name={participant.name}
-                    stroke={participantColor(participant.id, index)}
+                    stroke={participantColor(index)}
                     strokeWidth={2.5}
                     connectNulls={false}
                     dot={{ r: 3 }}
@@ -854,7 +877,7 @@ function ScoreHistory({
               <span key={participant.id}>
                 <i
                   style={{
-                    background: participantColor(participant.id, index),
+                    background: participantColor(index),
                   }}
                 />
                 {participant.name}
@@ -878,7 +901,7 @@ function PersonalBests({ rows }: { rows: PersonalBestRow[] }) {
           <h2>All-time highs</h2>
         </div>
       </div>
-      <RankingTable rows={rows} />
+      <RankingTable rows={rows} showDate />
     </section>
   );
 }
@@ -1061,21 +1084,20 @@ function findParticipant(participants: Participant[], value: string) {
   );
 }
 
-function participantColor(id: string, index: number): string {
+function participantColor(index: number): string {
   const palette = [
-    "#e05a33",
-    "#246b63",
-    "#7756a8",
-    "#b18412",
-    "#2e62a3",
-    "#b13f69",
-    "#477a30",
+    "#0072b2",
+    "#d55e00",
+    "#009e73",
+    "#cc79a7",
+    "#6f42c1",
+    "#e69f00",
+    "#17a2b8",
+    "#8c564b",
+    "#e83e8c",
+    "#4d4d4d",
   ];
-  const hash = Array.from(id).reduce(
-    (value, character) => value + character.charCodeAt(0),
-    index,
-  );
-  return palette[hash % palette.length];
+  return palette[index % palette.length];
 }
 
 function PageLoader() {

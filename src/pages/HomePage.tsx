@@ -1,29 +1,20 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { RecentLeaderboard } from "../../shared/domain";
-import { LEADERBOARD_ID_LENGTH, normalizeName } from "../../shared/domain";
-import { api, ApiRequestError } from "../api";
-import { Turnstile } from "../components/Turnstile";
-
-interface ConfigResponse {
-  turnstileSiteKey: string;
-}
+import { LEADERBOARD_ID_LENGTH } from "../../shared/domain";
+import { api } from "../api";
 
 export function HomePage() {
   const navigate = useNavigate();
   const [recent, setRecent] = useState<RecentLeaderboard[]>([]);
   const [openValue, setOpenValue] = useState("");
   const [openError, setOpenError] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [siteKey, setSiteKey] = useState("");
 
   useEffect(() => {
-    void Promise.all([
-      api<{ leaderboards: RecentLeaderboard[] }>("/api/session/recent"),
-      api<ConfigResponse>("/api/config"),
-    ]).then(([recentResponse, config]) => {
+    void api<{ leaderboards: RecentLeaderboard[] }>(
+      "/api/session/recent",
+    ).then((recentResponse) => {
       setRecent(recentResponse.leaderboards);
-      setSiteKey(config.turnstileSiteKey);
     });
   }, []);
 
@@ -48,26 +39,13 @@ export function HomePage() {
           A shared leaderboard for your group’s daily MapTap results — no
           account necessary.
         </p>
-        {!creating ? (
-          <div className="hero-action">
-            <button
-              className="button primary hero-cta"
-              onClick={() => setCreating(true)}
-            >
-              Create a new leaderboard
-              <span aria-hidden="true">→</span>
-            </button>
-            <p>No account required. Just choose a name and shared password.</p>
-          </div>
-        ) : (
-          <div className="hero-create-form">
-            <CreateLeaderboardForm
-              siteKey={siteKey}
-              onCancel={() => setCreating(false)}
-              onCreated={(id) => navigate(`/d/${id}`)}
-            />
-          </div>
-        )}
+        <div className="hero-action">
+          <Link className="button primary hero-cta" to="/create/details">
+            Create a new leaderboard
+            <span aria-hidden="true">→</span>
+          </Link>
+          <p>No account required. Just choose a name and shared password.</p>
+        </div>
       </section>
 
       <section className="your-leaderboards" aria-labelledby="recent-heading">
@@ -132,126 +110,6 @@ export function HomePage() {
         </form>
       </section>
     </div>
-  );
-}
-
-function CreateLeaderboardForm({
-  siteKey,
-  onCancel,
-  onCreated,
-}: {
-  siteKey: string;
-  onCancel: () => void;
-  onCreated: (id: string) => void;
-}) {
-  const [name, setName] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPasswords, setShowPasswords] = useState(false);
-  const [turnstileToken, setTurnstileToken] = useState("");
-  const [resetKey, setResetKey] = useState(0);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const handleToken = useCallback(
-    (token: string) => setTurnstileToken(token),
-    [],
-  );
-
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      const response = await api<{ leaderboard: { id: string } }>(
-        "/api/leaderboards",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            name: normalizeName(name).display,
-            password,
-            confirmPassword,
-            turnstileToken,
-          }),
-        },
-      );
-      onCreated(response.leaderboard.id);
-    } catch (requestError) {
-      setError(
-        requestError instanceof ApiRequestError
-          ? requestError.message
-          : "Couldn’t create leaderboard.",
-      );
-      setTurnstileToken("");
-      setResetKey((value) => value + 1);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form className="stack-form" onSubmit={submit}>
-      <div className="section-heading compact">
-        <div>
-          <p className="eyebrow">New leaderboard</p>
-          <h2>Create your leaderboard</h2>
-        </div>
-        <button type="button" className="text-button" onClick={onCancel}>
-          Close
-        </button>
-      </div>
-      <label>
-        Leaderboard name
-        <input
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          maxLength={60}
-          required
-        />
-      </label>
-      <label>
-        Shared password
-        <input
-          type={showPasswords ? "text" : "password"}
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          minLength={8}
-          maxLength={128}
-          autoComplete="new-password"
-          required
-        />
-      </label>
-      <label>
-        Confirm password
-        <input
-          type={showPasswords ? "text" : "password"}
-          value={confirmPassword}
-          onChange={(event) => setConfirmPassword(event.target.value)}
-          minLength={8}
-          maxLength={128}
-          autoComplete="new-password"
-          required
-        />
-      </label>
-      <label className="checkbox-field">
-        <input
-          type="checkbox"
-          checked={showPasswords}
-          onChange={(event) => setShowPasswords(event.target.checked)}
-        />
-        Reveal password
-      </label>
-      {siteKey && (
-        <Turnstile
-          siteKey={siteKey}
-          resetKey={resetKey}
-          onToken={handleToken}
-        />
-      )}
-      {error && <p className="form-error">{error}</p>}
-      <button className="button primary" disabled={busy || !turnstileToken}>
-        {busy ? "Creating…" : "Create leaderboard"}
-      </button>
-    </form>
   );
 }
 

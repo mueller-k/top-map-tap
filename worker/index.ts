@@ -8,6 +8,11 @@ import {
   type ParsedResult,
 } from '../shared/domain'
 import { parseMapTapResult } from '../shared/parser'
+import {
+  processGroupMeCandidates,
+  type ImportSummary,
+  type ProcessedGroupMeImport,
+} from '../shared/history-import'
 import { hashPassword, randomLeaderboardId, verifyPassword } from './crypto'
 import {
   buildSnapshot,
@@ -28,6 +33,7 @@ import {
 } from './sessions'
 
 const JSON_LIMIT = 8 * 1024
+const CREATE_JSON_LIMIT = 2 * 1024 * 1024
 const LEADERBOARD_ID_PATTERN = new RegExp(`^[A-Za-z0-9]{${LEADERBOARD_ID_LENGTH}}$`)
 const DUMMY_PASSWORD = {
   algorithm: 'PBKDF2-SHA-256' as const,
@@ -161,11 +167,12 @@ async function createLeaderboard(request: Request, env: Env, url: URL): Promise<
   const ip = clientIp(request)
   const limit = await env.CREATE_RATE_LIMIT.limit({ key: ip })
   if (!limit.success) return jsonError('RATE_LIMITED', 'Try again shortly.', 429, url)
-  const body = await readJson(request)
+  const body = await readJson(request, CREATE_JSON_LIMIT)
   const name = stringField(body, 'name')
   const password = stringField(body, 'password')
   const confirmPassword = stringField(body, 'confirmPassword')
   const turnstileToken = stringField(body, 'turnstileToken')
+  const importSource = stringField(body, 'importSource')
   if (!isValidName(name, 60)) {
     return jsonError('INVALID_NAME', 'Leaderboard name must be 1–60 characters.', 400, url)
   }
@@ -175,6 +182,39 @@ async function createLeaderboard(request: Request, env: Env, url: URL): Promise<
     Array.from(password).length > 128
   ) {
     return jsonError('INVALID_PASSWORD', 'Passwords must match and be 8–128 characters.', 400, url)
+  }
+  if (importSource !== 'none' && importSource !== 'groupme') {
+    return jsonError(
+      'INVALID_IMPORT_SOURCE',
+      'Choose a valid import source.',
+      400,
+      url,
+    )
+  }
+  let imported: ProcessedGroupMeImport | null = null
+  if (importSource === 'none') {
+    if ('importCandidates' in body || 'importSummary' in body) {
+      return jsonError('INVALID_IMPORT', 'Invalid history import.', 400, url)
+    }
+  } else {
+    const candidates = body.importCandidates
+    const expectedSummary = body.importSummary
+    if (!Array.isArray(candidates) || !isImportSummary(expectedSummary)) {
+      return jsonError('INVALID_IMPORT', 'Invalid history import.', 400, url)
+    }
+    const processed = processGroupMeCandidates(candidates)
+    if (!processed.ok) {
+      return importError(processed.code, url)
+    }
+    if (!sameImportSummary(processed.value.summary, expectedSummary)) {
+      return jsonError(
+        'IMPORT_PREVIEW_MISMATCH',
+        'History import changed. Review the export again.',
+        409,
+        url,
+      )
+    }
+    imported = processed.value
   }
   if (!isLocalDevelopmentHost(url.hostname)) {
     const turnstile = await verifyTurnstile(request, env, turnstileToken)
@@ -212,6 +252,9 @@ async function createLeaderboard(request: Request, env: Env, url: URL): Promise<
       'INSERT INTO session_leaderboards (session_id, leaderboard_id, last_accessed_at) VALUES (?, ?, ?)',
     ).bind(session.id, leaderboardId, now),
   )
+  if (imported) {
+    statements.push(...importStatements(env, leaderboardId, imported))
+  }
   await env.DB.batch(statements)
   return json(
     { leaderboard: { id: leaderboardId, name: cleanedName } },
@@ -544,21 +587,26 @@ function assertMutationRequest(request: Request, url: URL): void {
   }
 }
 
-async function readJson(request: Request): Promise<Record<string, unknown>> {
+async function readJson(
+  request: Request,
+  limit = JSON_LIMIT,
+): Promise<Record<string, unknown>> {
   const length = Number(request.headers.get('Content-Length') ?? 0)
-  if (length > JSON_LIMIT) throw new HttpError(413, 'BODY_TOO_LARGE', 'Request is too large.')
+  if (length > limit) throw new HttpError(413, 'BODY_TOO_LARGE', 'Request is too large.')
   if (!request.body) return {}
   const reader = request.body.getReader()
   const decoder = new TextDecoder()
   let text = ''
+  let bytesRead = 0
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
-    text += decoder.decode(value, { stream: true })
-    if (text.length > JSON_LIMIT) {
+    bytesRead += value.byteLength
+    if (bytesRead > limit) {
       await reader.cancel()
       throw new HttpError(413, 'BODY_TOO_LARGE', 'Request is too large.')
     }
+    text += decoder.decode(value, { stream: true })
   }
   text += decoder.decode()
   try {
@@ -568,6 +616,150 @@ async function readJson(request: Request): Promise<Record<string, unknown>> {
   } catch {
     throw new HttpError(400, 'INVALID_JSON', 'Invalid JSON.')
   }
+}
+
+function isImportSummary(value: unknown): value is ImportSummary {
+  if (!isRecord(value) || !Number.isSafeInteger(value.resultCount)) return false
+  if (
+    !Array.isArray(value.participantNames) ||
+    !value.participantNames.every((name) => typeof name === 'string')
+  ) {
+    return false
+  }
+  if (value.dateRange === null) return true
+  if (!isRecord(value.dateRange)) return false
+  return isDateParts(value.dateRange.earliest) && isDateParts(value.dateRange.latest)
+}
+
+function isDateParts(
+  value: unknown,
+): value is { year: number; month: number; day: number } {
+  return isRecord(value) &&
+    Number.isSafeInteger(value.year) &&
+    Number.isSafeInteger(value.month) &&
+    Number.isSafeInteger(value.day)
+}
+
+function sameImportSummary(
+  actual: ImportSummary,
+  expected: ImportSummary,
+): boolean {
+  return actual.resultCount === expected.resultCount &&
+    actual.participantNames.length === expected.participantNames.length &&
+    actual.participantNames.every(
+      (name, index) => name === expected.participantNames[index],
+    ) &&
+    sameDateRange(actual.dateRange, expected.dateRange)
+}
+
+function sameDateRange(
+  actual: ImportSummary['dateRange'],
+  expected: ImportSummary['dateRange'],
+): boolean {
+  if (actual === null || expected === null) return actual === expected
+  return sameDateParts(actual.earliest, expected.earliest) &&
+    sameDateParts(actual.latest, expected.latest)
+}
+
+function sameDateParts(
+  actual: { year: number; month: number; day: number },
+  expected: { year: number; month: number; day: number },
+): boolean {
+  return actual.year === expected.year &&
+    actual.month === expected.month &&
+    actual.day === expected.day
+}
+
+function importError(
+  code: 'INVALID_IMPORT' | 'NO_RESULTS' | 'TOO_MANY_RESULTS' | 'TOO_MANY_PARTICIPANTS',
+  url: URL,
+): Response {
+  if (code === 'NO_RESULTS') {
+    return jsonError('NO_IMPORT_RESULTS', 'No MapTap Results found.', 400, url)
+  }
+  if (code === 'TOO_MANY_RESULTS') {
+    return jsonError('IMPORT_RESULT_LIMIT', 'History import exceeds 250 Results.', 400, url)
+  }
+  if (code === 'TOO_MANY_PARTICIPANTS') {
+    return jsonError(
+      'IMPORT_PARTICIPANT_LIMIT',
+      'History import exceeds 25 Participants.',
+      400,
+      url,
+    )
+  }
+  return jsonError('INVALID_IMPORT', 'Invalid history import.', 400, url)
+}
+
+function importStatements(
+  env: Env,
+  leaderboardId: string,
+  imported: ProcessedGroupMeImport,
+): D1PreparedStatement[] {
+  const participantIds = new Map<string, string>()
+  const participantRows = imported.participants.map((participant) => {
+    const id = crypto.randomUUID()
+    participantIds.set(participant.normalizedName, id)
+    return [
+      id,
+      leaderboardId,
+      participant.displayName,
+      participant.normalizedName,
+      participant.createdAt,
+    ]
+  })
+  const resultRows = imported.results.map((result) => [
+    crypto.randomUUID(),
+    leaderboardId,
+    participantIds.get(result.participantNormalizedName)!,
+    result.date.year,
+    result.date.month,
+    result.date.day,
+    result.date.isCalendarDate ? 1 : 0,
+    ...result.roundScores,
+    result.finalScore,
+    result.sourceText,
+    result.createdAt,
+    result.createdAt,
+  ])
+
+  return [
+    ...chunkedInsertStatements(
+      env,
+      `INSERT INTO participants
+       (id, leaderboard_id, display_name, normalized_name, created_at) VALUES `,
+      participantRows,
+      20,
+    ),
+    ...chunkedInsertStatements(
+      env,
+      `INSERT INTO results
+       (id, leaderboard_id, participant_id, result_year, result_month, result_day,
+        is_calendar_date, round_1, round_2, round_3, round_4, round_5,
+        final_score, source_text, created_at, updated_at) VALUES `,
+      resultRows,
+      6,
+    ),
+  ]
+}
+
+function chunkedInsertStatements(
+  env: Env,
+  prefix: string,
+  rows: unknown[][],
+  chunkSize: number,
+): D1PreparedStatement[] {
+  const statements: D1PreparedStatement[] = []
+  for (let index = 0; index < rows.length; index += chunkSize) {
+    const chunk = rows.slice(index, index + chunkSize)
+    const placeholders = chunk.map(
+      (row) => `(${row.map(() => '?').join(', ')})`,
+    ).join(', ')
+    statements.push(
+      env.DB.prepare(prefix + placeholders).bind(...chunk.flat()),
+    )
+  }
+  return statements
 }
 
 function stringField(body: Record<string, unknown>, key: string): string {

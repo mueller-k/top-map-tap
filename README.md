@@ -1,6 +1,10 @@
 # Top Map Tap
 
-An unofficial, password-protected companion for sharing daily [MapTap](https://maptap.gg) results with a small group.
+Free, unofficial leaderboards for [MapTap](https://maptap.gg).
+
+Easily create password-protected leaderboards to share with your friends, and finally find out who the top map tapper is in your crew.
+
+Visit [Top Map Tap](https://topmaptap.com) today!
 
 ## Local development
 
@@ -11,8 +15,6 @@ pnpm db:migrate:local
 pnpm dev
 ```
 
-The checked-in Turnstile site key and `.dev.vars.example` secret are Cloudflare public test keys. They must be replaced for production.
-
 ## Verification
 
 ```sh
@@ -21,30 +23,8 @@ pnpm lint
 pnpm build
 ```
 
-## Production setup
+## High-Level Architecture
 
-1. Create the D1 database:
-
-   ```sh
-   wrangler d1 create top-map-tap
-   ```
-
-2. Replace the placeholder `database_id` in `wrangler.jsonc`.
-3. Create a managed Turnstile widget for `topmaptap.com`.
-4. Replace `TURNSTILE_SITE_KEY` in `wrangler.jsonc`.
-5. Store the Turnstile secret securely:
-
-   ```sh
-   wrangler secret put TURNSTILE_SECRET_KEY
-   ```
-
-6. Apply migrations and deploy:
-
-   ```sh
-   pnpm db:migrate:remote
-   pnpm deploy
-   ```
-
-Leaderboard settings are intentionally immutable in v1. There are no accounts, deletion tools, or administrative bypass.
+Top Map Tap is a simple React application built on Cloudflare. Backed by Cloudflare [Workers](https://www.cloudflare.com/products/workers/), with [D1](https://www.cloudflare.com/products/d1/) storage, and [Turnstile](https://www.cloudflare.com/products/turnstile/) abuse protection.
 
 See [CONTEXT.md](./CONTEXT.md) for the project language and [docs/adr](./docs/adr) for architectural decisions.

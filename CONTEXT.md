@@ -67,3 +67,11 @@ _Avoid_: Result
 **Source Text**:
 The exact copied MapTap text from which a Result was parsed, retained for future parsing validation but not shown in the leaderboard.
 _Avoid_: Raw result, submission body
+
+**History Import**:
+An optional, creation-only process that derives Participants and Results from an external chat export. Unrelated chat content is neither retained nor made part of the Leaderboard.
+_Avoid_: Backfill, chat import
+
+**Import Source**:
+The external service whose export supplies candidates for a History Import. Choosing no Import Source creates a Leaderboard without imported history.
+_Avoid_: Provider

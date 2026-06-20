@@ -33,7 +33,11 @@ export type ParseResult =
       message: string
     }
 
-export function parseMapTapResult(sourceText: string, currentYear: number): ParseResult {
+export function parseMapTapResult(
+  sourceText: string,
+  defaultYear: number,
+  currentYear = defaultYear,
+): ParseResult {
   if (sourceText.length > MAX_SOURCE_TEXT_LENGTH) {
     return failure('SOURCE_TOO_LONG', 'Paste is too long.')
   }
@@ -59,7 +63,7 @@ export function parseMapTapResult(sourceText: string, currentYear: number): Pars
   }
   const month = MONTHS.get(dateMatch[1].toLocaleLowerCase('en-US'))
   const day = Number(dateMatch[2])
-  const year = dateMatch[3] ? Number(dateMatch[3]) : currentYear
+  const year = dateMatch[3] ? Number(dateMatch[3]) : defaultYear
   if (!month || day < 1 || day > 31 || year < 2000 || year > currentYear + 1) {
     return failure('INVALID_DATE', 'The MapTap date is outside the accepted range.')
   }

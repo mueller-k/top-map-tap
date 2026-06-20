@@ -51,6 +51,7 @@ export function Turnstile({
     return () => {
       cancelled = true;
       if (widgetId && window.turnstile) window.turnstile.remove(widgetId);
+      onToken("");
     };
   }, [siteKey, resetKey, onToken]);
 
