@@ -29,7 +29,7 @@ A permanent display name under which results are submitted within a leaderboard.
 _Avoid_: User, account, player profile
 
 **Result**:
-A participant's MapTap performance for a particular MapTap Date, comprising Round Scores and a Final Score. A leaderboard retains at most one result for each participant and MapTap Date; a later submission replaces the earlier result, and Results cannot be deleted.
+A participant's MapTap performance for a particular MapTap Date, comprising Round Scores and a Final Score. A leaderboard retains at most one result for each participant and MapTap Date; the Result with the later Submission Time prevails, and Results cannot be deleted.
 _Avoid_: Score entry
 
 **MapTap Date**:
@@ -68,6 +68,10 @@ _Avoid_: Lowest Scores
 Copied MapTap result text provided for a chosen existing or newly named participant. It is accepted when its date, five Round Scores, and Final Score have the expected structure; the numeric values are not checked for internal consistency.
 _Avoid_: Result
 
+**Submission Time**:
+The time used to order competing Submissions for one Participant and MapTap Date. It is the server receipt time for direct Submissions and the message creation time for GroupMe imports.
+_Avoid_: Arrival time, updated time
+
 **Source Text**:
 The exact copied MapTap text from which a Result was parsed, retained for future parsing validation but not shown in the leaderboard.
 _Avoid_: Raw result, submission body
@@ -79,3 +83,11 @@ _Avoid_: Backfill, chat import
 **Import Source**:
 The external service whose export supplies candidates for a History Import. Choosing no Import Source creates a Leaderboard without imported history.
 _Avoid_: Provider
+
+**GroupMe Live Import**:
+An optional connection that derives Results from new messages published to the same GroupMe group used for a Leaderboard's History Import. A message's normalized sender name identifies its Participant; nickname changes may therefore create a different Participant.
+_Avoid_: Bot, sync
+
+**GroupMe Callback URL**:
+An unlisted, high-entropy URL that grants GroupMe permission to submit messages for one GroupMe Live Import. Possession of the URL is the integration credential; the expected GroupMe group ID further limits its scope.
+_Avoid_: Public endpoint, webhook secret

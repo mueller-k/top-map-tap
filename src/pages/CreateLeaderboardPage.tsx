@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type RefObject,
 } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -31,6 +32,11 @@ interface GroupMePreview {
   summary: ImportSummary;
 }
 
+interface CreatedLeaderboard {
+  id: string;
+  name: string;
+}
+
 export function CreateLeaderboardPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -44,6 +50,11 @@ export function CreateLeaderboardPage() {
   const [fileName, setFileName] = useState("");
   const [groupMePreview, setGroupMePreview] =
     useState<GroupMePreview | null>(null);
+  const [groupMeLiveImport, setGroupMeLiveImport] = useState(false);
+  const [groupMeGroupId, setGroupMeGroupId] = useState("");
+  const [groupMeCallbackToken, setGroupMeCallbackToken] = useState("");
+  const [createdLeaderboard, setCreatedLeaderboard] =
+    useState<CreatedLeaderboard | null>(null);
   const [processing, setProcessing] = useState(false);
   const [importError, setImportError] = useState("");
   const [creationError, setCreationError] = useState("");
@@ -55,6 +66,7 @@ export function CreateLeaderboardPage() {
   const workerRef = useRef<Worker | null>(null);
 
   const pathStep = location.pathname.split("/").at(-1);
+  const isGroupMeSetup = pathStep === "groupme-setup";
   const step: Step =
     pathStep === "import" || pathStep === "review" ? pathStep : "details";
   const restartMessage =
@@ -70,6 +82,14 @@ export function CreateLeaderboardPage() {
   }, []);
 
   useEffect(() => {
+    if (isGroupMeSetup) {
+      if (!createdLeaderboard || !groupMeCallbackToken) {
+        navigate("/", { replace: true });
+        return;
+      }
+      headingRef.current?.focus();
+      return;
+    }
     if (
       (step === "import" || step === "review") &&
       !detailsComplete
@@ -87,8 +107,11 @@ export function CreateLeaderboardPage() {
     headingRef.current?.focus();
   }, [
     detailsComplete,
+    createdLeaderboard,
     groupMePreview,
+    groupMeCallbackToken,
     importSource,
+    isGroupMeSetup,
     navigate,
     step,
   ]);
@@ -122,7 +145,23 @@ export function CreateLeaderboardPage() {
   function chooseImportSource(next: ImportSource) {
     setImportSource(next);
     setImportError("");
-    if (next === "none") resetFile();
+    if (next === "none") {
+      resetFile();
+      setGroupMeLiveImport(false);
+      setGroupMeGroupId("");
+      setGroupMeCallbackToken("");
+    }
+  }
+
+  function chooseGroupMeLiveImport(enabled: boolean) {
+    setGroupMeLiveImport(enabled);
+    setImportError("");
+    if (enabled) {
+      setGroupMeCallbackToken((token) => token || randomCallbackToken());
+    } else {
+      setGroupMeGroupId("");
+      setGroupMeCallbackToken("");
+    }
   }
 
   function resetFile() {
@@ -195,6 +234,13 @@ export function CreateLeaderboardPage() {
         candidates: refreshed.value.candidates,
         summary: refreshed.value.summary,
       });
+      if (
+        groupMeLiveImport &&
+        !/^\d{1,64}$/.test(groupMeGroupId.trim())
+      ) {
+        setImportError("Enter the numeric ID for this GroupMe group.");
+        return;
+      }
     }
     navigate("/create/review");
   }
@@ -214,7 +260,7 @@ export function CreateLeaderboardPage() {
               importSummary: groupMePreview.summary,
             }
           : {};
-      const response = await api<{ leaderboard: { id: string } }>(
+      const response = await api<{ leaderboard: CreatedLeaderboard }>(
         "/api/leaderboards",
         {
           method: "POST",
@@ -225,10 +271,22 @@ export function CreateLeaderboardPage() {
             turnstileToken,
             importSource,
             ...importFields,
+            ...(groupMeLiveImport
+              ? {
+                  groupMeLiveImport: true,
+                  groupMeGroupId: groupMeGroupId.trim(),
+                  groupMeCallbackToken,
+                }
+              : {}),
           }),
         },
       );
-      navigate(`/d/${response.leaderboard.id}`);
+      if (groupMeLiveImport) {
+        setCreatedLeaderboard(response.leaderboard);
+        navigate("/create/groupme-setup", { replace: true });
+      } else {
+        navigate(`/d/${response.leaderboard.id}`);
+      }
     } catch (requestError) {
       setTurnstileToken("");
       setTurnstileResetKey((value) => value + 1);
@@ -253,6 +311,18 @@ export function CreateLeaderboardPage() {
 
   if (location.pathname === "/create" || location.pathname === "/create/") {
     return <Navigate to="/create/details" replace />;
+  }
+  if (isGroupMeSetup) {
+    if (!createdLeaderboard || !groupMeCallbackToken) return null;
+    return (
+      <GroupMeSetup
+        headingRef={headingRef}
+        leaderboard={createdLeaderboard}
+        groupId={groupMeGroupId.trim()}
+        callbackUrl={`${window.location.origin}/api/groupme-callbacks/${groupMeCallbackToken}`}
+        onContinue={() => navigate(`/d/${createdLeaderboard.id}`)}
+      />
+    );
   }
 
   return (
@@ -424,11 +494,44 @@ export function CreateLeaderboardPage() {
                   </button>
                 )}
                 {groupMePreview && (
-                  <ImportSummaryView
-                    fileName={fileName}
-                    summary={groupMePreview.summary}
-                    onReplace={resetFile}
-                  />
+                  <>
+                    <ImportSummaryView
+                      fileName={fileName}
+                      summary={groupMePreview.summary}
+                      onReplace={resetFile}
+                    />
+                    <div className="live-import-option">
+                      <label className="checkbox-field">
+                        <input
+                          type="checkbox"
+                          checked={groupMeLiveImport}
+                          onChange={(event) =>
+                            chooseGroupMeLiveImport(event.target.checked)
+                          }
+                        />
+                        Automatically import future GroupMe Results
+                      </label>
+                      {groupMeLiveImport && (
+                        <label>
+                          GroupMe group ID
+                          <input
+                            inputMode="numeric"
+                            pattern="[0-9]+"
+                            maxLength={64}
+                            value={groupMeGroupId}
+                            onChange={(event) =>
+                              setGroupMeGroupId(event.target.value)
+                            }
+                            required
+                          />
+                          <span className="field-hint">
+                            An incorrect ID will cause callbacks to be silently
+                            discarded.
+                          </span>
+                        </label>
+                      )}
+                    </div>
+                  </>
                 )}
                 {importError && (
                   <p className="form-error" role="alert">
@@ -486,6 +589,14 @@ export function CreateLeaderboardPage() {
                 <dt>Import source</dt>
                 <dd>{importSource === "groupme" ? "GroupMe" : "No import"}</dd>
               </div>
+              {groupMeLiveImport && (
+                <div>
+                  <dt>Future GroupMe Results</dt>
+                  <dd>
+                    Automatic import from group {groupMeGroupId.trim()}
+                  </dd>
+                </div>
+              )}
             </dl>
             {importSource === "groupme" && groupMePreview && (
               <ImportSummaryView
@@ -526,6 +637,123 @@ export function CreateLeaderboardPage() {
             </div>
           </div>
         )}
+      </section>
+    </div>
+  );
+}
+
+function GroupMeSetup({
+  headingRef,
+  leaderboard,
+  groupId,
+  callbackUrl,
+  onContinue,
+}: {
+  headingRef: RefObject<HTMLHeadingElement | null>;
+  leaderboard: CreatedLeaderboard;
+  groupId: string;
+  callbackUrl: string;
+  onContinue: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+
+  async function copyCallbackUrl() {
+    try {
+      await navigator.clipboard.writeText(callbackUrl);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <div className="create-page">
+      <section className="card wizard-card stack-form">
+        <div>
+          <p className="eyebrow">One-time GroupMe setup</p>
+          <h1 ref={headingRef} tabIndex={-1}>
+            Connect your GroupMe bot.
+          </h1>
+          <p className="muted">
+            This Callback URL is shown only now. Copy it before continuing;
+            Top Map Tap cannot recover or replace it.
+          </p>
+        </div>
+
+        <dl className="review-list">
+          <div>
+            <dt>Leaderboard</dt>
+            <dd>{leaderboard.name}</dd>
+          </div>
+          <div>
+            <dt>Expected GroupMe group ID</dt>
+            <dd>{groupId}</dd>
+          </div>
+        </dl>
+
+        <label>
+          GroupMe Callback URL
+          <div className="callback-url-control">
+            <input
+              readOnly
+              value={callbackUrl}
+              onFocus={(event) => event.currentTarget.select()}
+              aria-describedby="callback-url-warning"
+            />
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() => void copyCallbackUrl()}
+            >
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+        </label>
+        <p id="callback-url-warning" className="warning">
+          Anyone with this URL can submit callbacks for this connection. Don’t
+          post it in the chat or share it elsewhere.
+        </p>
+
+        <ol className="setup-steps">
+          <li>
+            Open GroupMe’s{" "}
+            <a
+              className="text-link"
+              href="https://dev.groupme.com/bots"
+              target="_blank"
+              rel="noreferrer"
+            >
+              bot setup page
+            </a>
+            .
+          </li>
+          <li>Create a bot for group ID {groupId}.</li>
+          <li>Paste this URL into the bot’s Callback URL field.</li>
+        </ol>
+
+        <label className="checkbox-field">
+          <input
+            type="checkbox"
+            checked={confirmed}
+            onChange={(event) => setConfirmed(event.target.checked)}
+          />
+          I copied the Callback URL
+        </label>
+
+        <div className="wizard-actions setup-actions">
+          <span className="field-hint">
+            Closing or refreshing this page loses the URL.
+          </span>
+          <button
+            type="button"
+            className="button primary"
+            disabled={!confirmed}
+            onClick={onContinue}
+          >
+            Continue to leaderboard
+          </button>
+        </div>
       </section>
     </div>
   );
@@ -605,6 +833,17 @@ function stepLabel(step: Step) {
 
 function plural(value: number, singular: string) {
   return value === 1 ? singular : `${singular}s`;
+}
+
+function randomCallbackToken(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary)
+    .replace(/\+/gu, "-")
+    .replace(/\//gu, "_")
+    .replace(/=+$/gu, "");
 }
 
 function formatDateRange(

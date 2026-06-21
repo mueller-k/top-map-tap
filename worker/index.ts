@@ -13,7 +13,12 @@ import {
   type ImportSummary,
   type ProcessedGroupMeImport,
 } from '../shared/history-import'
-import { hashPassword, randomLeaderboardId, verifyPassword } from './crypto'
+import {
+  hashPassword,
+  randomLeaderboardId,
+  sha256,
+  verifyPassword,
+} from './crypto'
 import {
   buildSnapshot,
   currentDate,
@@ -34,6 +39,11 @@ import {
 
 const JSON_LIMIT = 8 * 1024
 const CREATE_JSON_LIMIT = 2 * 1024 * 1024
+const GROUPME_CALLBACK_JSON_LIMIT = 8 * 1024
+const GROUPME_CALLBACK_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/
+const GROUPME_GROUP_ID_PATTERN = /^\d{1,64}$/
+const GROUPME_MESSAGE_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
+const GROUPME_FUTURE_SKEW_MS = 5 * 60 * 1000
 const LEADERBOARD_ID_PATTERN = new RegExp(`^[A-Za-z0-9]{${LEADERBOARD_ID_LENGTH}}$`)
 const DUMMY_PASSWORD = {
   algorithm: 'PBKDF2-SHA-256' as const,
@@ -58,7 +68,7 @@ export default {
       console.error(JSON.stringify({
         message: 'request failed',
         method: request.method,
-        path: url.pathname,
+        path: safeLogPath(url.pathname),
         error: error instanceof Error ? error.message : String(error),
       }))
       return jsonError('INTERNAL_ERROR', 'Something went wrong. Try again.', 500, url)
@@ -97,6 +107,15 @@ async function routeApi(request: Request, env: Env, url: URL): Promise<Response>
   if (request.method === 'POST' && url.pathname === '/api/leaderboards') {
     assertMutationRequest(request, url)
     return createLeaderboard(request, env, url)
+  }
+  const groupMeCallback = /^\/api\/groupme-callbacks\/([^/]+)$/.exec(url.pathname)
+  if (request.method === 'POST' && groupMeCallback) {
+    return receiveGroupMeCallback(
+      request,
+      env,
+      url,
+      groupMeCallback[1],
+    )
   }
 
   const match = /^\/api\/leaderboards\/([^/]+)(?:\/(.*))?$/.exec(url.pathname)
@@ -177,6 +196,9 @@ async function createLeaderboard(request: Request, env: Env, url: URL): Promise<
   const confirmPassword = stringField(body, 'confirmPassword')
   const turnstileToken = stringField(body, 'turnstileToken')
   const importSource = stringField(body, 'importSource')
+  const groupMeLiveImport = body.groupMeLiveImport === true
+  const groupMeGroupId = stringField(body, 'groupMeGroupId')
+  const groupMeCallbackToken = stringField(body, 'groupMeCallbackToken')
   if (!isValidName(name, 60)) {
     return jsonError('INVALID_NAME', 'Leaderboard name must be 1–60 characters.', 400, url)
   }
@@ -197,7 +219,13 @@ async function createLeaderboard(request: Request, env: Env, url: URL): Promise<
   }
   let imported: ProcessedGroupMeImport | null = null
   if (importSource === 'none') {
-    if ('importCandidates' in body || 'importSummary' in body) {
+    if (
+      'importCandidates' in body ||
+      'importSummary' in body ||
+      groupMeLiveImport ||
+      'groupMeGroupId' in body ||
+      'groupMeCallbackToken' in body
+    ) {
       return jsonError('INVALID_IMPORT', 'Invalid history import.', 400, url)
     }
   } else {
@@ -219,6 +247,21 @@ async function createLeaderboard(request: Request, env: Env, url: URL): Promise<
       )
     }
     imported = processed.value
+    if (groupMeLiveImport) {
+      if (
+        !GROUPME_GROUP_ID_PATTERN.test(groupMeGroupId) ||
+        !GROUPME_CALLBACK_TOKEN_PATTERN.test(groupMeCallbackToken)
+      ) {
+        return jsonError(
+          'INVALID_GROUPME_LIVE_IMPORT',
+          'Enter a valid GroupMe group ID.',
+          400,
+          url,
+        )
+      }
+    } else if ('groupMeGroupId' in body || 'groupMeCallbackToken' in body) {
+      return jsonError('INVALID_GROUPME_LIVE_IMPORT', 'Invalid GroupMe live import.', 400, url)
+    }
   }
   if (!isLocalDevelopmentHost(url.hostname)) {
     const turnstile = await verifyTurnstile(request, env, turnstileToken)
@@ -230,6 +273,9 @@ async function createLeaderboard(request: Request, env: Env, url: URL): Promise<
   const leaderboardId = randomLeaderboardId()
   const cleanedName = normalizeName(name).display
   const passwordHash = await hashPassword(password)
+  const callbackTokenHash = groupMeLiveImport
+    ? await sha256(groupMeCallbackToken)
+    : null
   const now = new Date().toISOString()
   const existingSession = await readSession(request, env)
   const sessionInsert = existingSession ? null : await sessionInsertStatement(env)
@@ -259,6 +305,21 @@ async function createLeaderboard(request: Request, env: Env, url: URL): Promise<
   if (imported) {
     statements.push(...importStatements(env, leaderboardId, imported))
   }
+  if (callbackTokenHash) {
+    statements.push(
+      env.DB.prepare(
+        `INSERT INTO groupme_live_imports
+         (id, leaderboard_id, callback_token_hash, group_id, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      ).bind(
+        crypto.randomUUID(),
+        leaderboardId,
+        callbackTokenHash,
+        groupMeGroupId,
+        now,
+      ),
+    )
+  }
   await env.DB.batch(statements)
   return json(
     { leaderboard: { id: leaderboardId, name: cleanedName } },
@@ -266,6 +327,148 @@ async function createLeaderboard(request: Request, env: Env, url: URL): Promise<
     url,
     sessionInsert ? sessionCookie(session, url.protocol === 'https:') : undefined,
   )
+}
+
+interface GroupMeLiveImportRow {
+  id: string
+  leaderboard_id: string
+  group_id: string
+}
+
+interface AcceptedGroupMeSubmission {
+  messageId: string
+  participantDisplayName: string
+  participantNormalizedName: string
+  submissionTime: string
+  parsed: ParsedResult
+}
+
+async function receiveGroupMeCallback(
+  request: Request,
+  env: Env,
+  url: URL,
+  callbackToken: string,
+): Promise<Response> {
+  if (!GROUPME_CALLBACK_TOKEN_PATTERN.test(callbackToken)) {
+    return jsonError('NOT_FOUND', 'Not found.', 404, url)
+  }
+  const callbackTokenHash = await sha256(callbackToken)
+  const tokenLimit = await env.GROUPME_CALLBACK_RATE_LIMIT.limit({
+    key: `token:${callbackTokenHash}`,
+  })
+  const integration = await env.DB.prepare(
+    `SELECT id, leaderboard_id, group_id
+     FROM groupme_live_imports WHERE callback_token_hash = ?`,
+  ).bind(callbackTokenHash).first<GroupMeLiveImportRow>()
+  if (!integration) return jsonError('NOT_FOUND', 'Not found.', 404, url)
+  if (!tokenLimit.success) return noContent(url)
+
+  const ipLimit = await env.GROUPME_CALLBACK_RATE_LIMIT.limit({
+    key: `ip:${clientIp(request)}`,
+  })
+  if (!ipLimit.success) return noContent(url)
+  if (!request.headers.get('Content-Type')?.toLowerCase().startsWith('application/json')) {
+    return noContent(url)
+  }
+
+  let body: Record<string, unknown>
+  try {
+    body = await readJson(request, GROUPME_CALLBACK_JSON_LIMIT)
+  } catch (error) {
+    if (error instanceof HttpError) return noContent(url)
+    throw error
+  }
+  const submission = acceptedGroupMeSubmission(
+    body,
+    integration.group_id,
+    new Date(),
+  )
+  if (!submission) return noContent(url)
+
+  const received = await env.DB.prepare(
+    `SELECT 1 AS received FROM groupme_message_receipts
+     WHERE integration_id = ? AND message_id = ?`,
+  ).bind(integration.id, submission.messageId).first<{ received: number }>()
+  if (received) return noContent(url)
+
+  const receivedAt = new Date().toISOString()
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT OR IGNORE INTO participants
+       (id, leaderboard_id, display_name, normalized_name, created_at)
+       SELECT ?, ?, ?, ?, ?
+       WHERE (SELECT COUNT(*) FROM participants WHERE leaderboard_id = ?) < ?`,
+    ).bind(
+      crypto.randomUUID(),
+      integration.leaderboard_id,
+      submission.participantDisplayName,
+      submission.participantNormalizedName,
+      submission.submissionTime,
+      integration.leaderboard_id,
+      MAX_PARTICIPANTS,
+    ),
+    resultUpsertStatement(env, {
+      leaderboardId: integration.leaderboard_id,
+      participantNormalizedName: submission.participantNormalizedName,
+      parsed: submission.parsed,
+      submissionTime: submission.submissionTime,
+      submissionSource: 'groupme',
+      groupMeMessageId: submission.messageId,
+      writtenAt: receivedAt,
+      receiptGuard: {
+        integrationId: integration.id,
+        messageId: submission.messageId,
+      },
+    }),
+    env.DB.prepare(
+      `INSERT OR IGNORE INTO groupme_message_receipts
+       (integration_id, message_id, received_at) VALUES (?, ?, ?)`,
+    ).bind(integration.id, submission.messageId, receivedAt),
+  ])
+  return noContent(url)
+}
+
+export function acceptedGroupMeSubmission(
+  body: Record<string, unknown>,
+  expectedGroupId: string,
+  now: Date,
+): AcceptedGroupMeSubmission | null {
+  if (
+    body.system !== false ||
+    body.sender_type !== 'user' ||
+    body.group_id !== expectedGroupId ||
+    typeof body.id !== 'string' ||
+    !GROUPME_MESSAGE_ID_PATTERN.test(body.id) ||
+    typeof body.name !== 'string' ||
+    !isValidName(body.name, 30) ||
+    typeof body.text !== 'string' ||
+    typeof body.created_at !== 'number' ||
+    !Number.isSafeInteger(body.created_at)
+  ) {
+    return null
+  }
+  const timestamp = new Date(body.created_at * 1000)
+  if (
+    !Number.isFinite(timestamp.getTime()) ||
+    timestamp.getUTCFullYear() < 2000 ||
+    timestamp.getTime() > now.getTime() + GROUPME_FUTURE_SKEW_MS
+  ) {
+    return null
+  }
+  const parsed = parseMapTapResult(
+    body.text,
+    timestamp.getUTCFullYear(),
+    now.getUTCFullYear(),
+  )
+  if (!parsed.ok) return null
+  const participant = normalizeName(body.name)
+  return {
+    messageId: body.id,
+    participantDisplayName: participant.display,
+    participantNormalizedName: participant.normalized,
+    submissionTime: timestamp.toISOString(),
+    parsed: parsed.value,
+  }
 }
 
 async function unlockLeaderboard(
@@ -345,18 +548,8 @@ async function submitResult(
   const existing = participant.id
     ? await findExistingResult(env, leaderboard.id, participant.id, parsed.value)
     : null
-  if (existing && sameScores(existing, parsed.value)) {
-    return json({
-      status: 'unchanged',
-      snapshot: await buildSnapshot(
-        env,
-        leaderboard,
-        historyDays,
-        visibleLeaderboardDate(parsed.value.date, today),
-      ),
-    }, 200, url)
-  }
-  if (existing && !forceReplace) {
+  const scoresMatch = existing ? sameScores(existing, parsed.value) : false
+  if (existing && !scoresMatch && !forceReplace) {
     return json({
       error: { code: 'REPLACEMENT_REQUIRED', message: 'Confirm replacement.' },
       existing: toResultView(existing),
@@ -364,83 +557,45 @@ async function submitResult(
   }
 
   const now = new Date().toISOString()
-  if (existing) {
-    await env.DB.prepare(
-      `UPDATE results SET is_calendar_date = ?, round_1 = ?, round_2 = ?,
-       round_3 = ?, round_4 = ?, round_5 = ?, final_score = ?, source_text = ?,
-       updated_at = ? WHERE id = ?`,
-    ).bind(
-      parsed.value.date.isCalendarDate ? 1 : 0,
-      ...parsed.value.roundScores,
-      parsed.value.finalScore,
-      parsed.value.sourceText,
-      now,
-      existing.id,
-    ).run()
-  } else {
-    const participantUuid = participant.id ?? crypto.randomUUID()
-    const resultId = crypto.randomUUID()
-    const statements: D1PreparedStatement[] = []
-    if (!participant.id) {
-      statements.push(
-        env.DB.prepare(
-          `INSERT OR IGNORE INTO participants
-           (id, leaderboard_id, display_name, normalized_name, created_at)
-           VALUES (?, ?, ?, ?, ?)`,
-        ).bind(
-          participantUuid,
-          leaderboard.id,
-          participant.display,
-          participant.normalized,
-          now,
-        ),
-      )
-    }
+  const statements: D1PreparedStatement[] = []
+  if (!participant.id) {
     statements.push(
       env.DB.prepare(
-        `INSERT OR IGNORE INTO results
-         (id, leaderboard_id, participant_id, result_year, result_month, result_day,
-          is_calendar_date, round_1, round_2, round_3, round_4, round_5,
-          final_score, source_text, created_at, updated_at)
-         SELECT ?, ?, p.id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-         FROM participants p
-         WHERE p.leaderboard_id = ? AND p.normalized_name = ?`,
+        `INSERT OR IGNORE INTO participants
+         (id, leaderboard_id, display_name, normalized_name, created_at)
+         SELECT ?, ?, ?, ?, ?
+         WHERE (SELECT COUNT(*) FROM participants WHERE leaderboard_id = ?) < ?`,
       ).bind(
-        resultId,
+        crypto.randomUUID(),
         leaderboard.id,
-        parsed.value.date.year,
-        parsed.value.date.month,
-        parsed.value.date.day,
-        parsed.value.date.isCalendarDate ? 1 : 0,
-        ...parsed.value.roundScores,
-        parsed.value.finalScore,
-        parsed.value.sourceText,
-        now,
-        now,
-        leaderboard.id,
+        participant.display,
         participant.normalized,
+        now,
+        leaderboard.id,
+        MAX_PARTICIPANTS,
       ),
     )
-    await env.DB.batch(statements)
-    const actualParticipant = await env.DB.prepare(
-      'SELECT id FROM participants WHERE leaderboard_id = ? AND normalized_name = ?',
-    ).bind(leaderboard.id, participant.normalized).first<{ id: string }>()
-    if (!actualParticipant) throw new Error('Participant insert did not resolve')
-    const raced = await findExistingResult(
-      env,
-      leaderboard.id,
-      actualParticipant.id,
-      parsed.value,
-    )
-    if (raced && raced.id !== resultId && !sameScores(raced, parsed.value)) {
-      return json({
-        error: { code: 'REPLACEMENT_REQUIRED', message: 'Confirm replacement.' },
-        existing: toResultView(raced),
-      }, 409, url)
-    }
+  }
+  statements.push(
+    resultUpsertStatement(env, {
+      leaderboardId: leaderboard.id,
+      participantNormalizedName: participant.normalized,
+      parsed: parsed.value,
+      submissionTime: now,
+      submissionSource: 'direct',
+      groupMeMessageId: null,
+      writtenAt: now,
+    }),
+  )
+  await env.DB.batch(statements)
+  const actualParticipant = await env.DB.prepare(
+    'SELECT id FROM participants WHERE leaderboard_id = ? AND normalized_name = ?',
+  ).bind(leaderboard.id, participant.normalized).first<{ id: string }>()
+  if (!actualParticipant) {
+    return jsonError('PARTICIPANT_LIMIT', 'Participant limit reached.', 400, url)
   }
   return json({
-    status: existing ? 'replaced' : 'created',
+    status: existing ? (scoresMatch ? 'unchanged' : 'replaced') : 'created',
     snapshot: await buildSnapshot(
       env,
       leaderboard,
@@ -498,7 +653,8 @@ async function findExistingResult(
   return env.DB.prepare(
     `SELECT r.id, r.participant_id, p.display_name, r.result_year, r.result_month,
             r.result_day, r.is_calendar_date, r.round_1, r.round_2, r.round_3,
-            r.round_4, r.round_5, r.final_score, r.created_at, r.updated_at
+            r.round_4, r.round_5, r.final_score, r.submission_time,
+            r.submission_source, r.groupme_message_id, r.created_at, r.updated_at
      FROM results r JOIN participants p ON p.id = r.participant_id
      WHERE r.leaderboard_id = ? AND r.participant_id = ?
        AND r.result_year = ? AND r.result_month = ? AND r.result_day = ?`,
@@ -515,6 +671,88 @@ function sameScores(row: ResultRow, parsed: ParsedResult): boolean {
   return row.final_score === parsed.finalScore &&
     [row.round_1, row.round_2, row.round_3, row.round_4, row.round_5]
       .every((score, index) => score === parsed.roundScores[index])
+}
+
+interface ResultSubmission {
+  leaderboardId: string
+  participantNormalizedName: string
+  parsed: ParsedResult
+  submissionTime: string
+  submissionSource: 'direct' | 'groupme'
+  groupMeMessageId: string | null
+  writtenAt: string
+  receiptGuard?: {
+    integrationId: string
+    messageId: string
+  }
+}
+
+function resultUpsertStatement(
+  env: Env,
+  submission: ResultSubmission,
+): D1PreparedStatement {
+  const receiptGuard = submission.receiptGuard
+    ? `AND NOT EXISTS (
+         SELECT 1 FROM groupme_message_receipts
+         WHERE integration_id = ? AND message_id = ?
+       )`
+    : ''
+  const statement = env.DB.prepare(
+    `INSERT INTO results
+     (id, leaderboard_id, participant_id, result_year, result_month, result_day,
+      is_calendar_date, round_1, round_2, round_3, round_4, round_5,
+      final_score, source_text, submission_time, submission_source,
+      groupme_message_id, created_at, updated_at)
+     SELECT ?, ?, p.id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+     FROM participants p
+     WHERE p.leaderboard_id = ? AND p.normalized_name = ?
+     ${receiptGuard}
+     ON CONFLICT (leaderboard_id, participant_id, result_year, result_month, result_day)
+     DO UPDATE SET
+       is_calendar_date = excluded.is_calendar_date,
+       round_1 = excluded.round_1,
+       round_2 = excluded.round_2,
+       round_3 = excluded.round_3,
+       round_4 = excluded.round_4,
+       round_5 = excluded.round_5,
+       final_score = excluded.final_score,
+       source_text = excluded.source_text,
+       submission_time = excluded.submission_time,
+       submission_source = excluded.submission_source,
+       groupme_message_id = excluded.groupme_message_id,
+       updated_at = excluded.updated_at
+     WHERE excluded.submission_time > results.submission_time
+        OR (
+          excluded.submission_time = results.submission_time
+          AND excluded.submission_source = 'direct'
+          AND results.submission_source <> 'direct'
+        )`,
+  )
+  const values: unknown[] = [
+    crypto.randomUUID(),
+    submission.leaderboardId,
+    submission.parsed.date.year,
+    submission.parsed.date.month,
+    submission.parsed.date.day,
+    submission.parsed.date.isCalendarDate ? 1 : 0,
+    ...submission.parsed.roundScores,
+    submission.parsed.finalScore,
+    submission.parsed.sourceText,
+    submission.submissionTime,
+    submission.submissionSource,
+    submission.groupMeMessageId,
+    submission.submissionTime,
+    submission.writtenAt,
+    submission.leaderboardId,
+    submission.participantNormalizedName,
+  ]
+  if (submission.receiptGuard) {
+    values.push(
+      submission.receiptGuard.integrationId,
+      submission.receiptGuard.messageId,
+    )
+  }
+  return statement.bind(...values)
 }
 
 async function requireAccess(
@@ -724,7 +962,6 @@ function importStatements(
     result.finalScore,
     result.sourceText,
     result.createdAt,
-    result.createdAt,
   ])
 
   return [
@@ -735,16 +972,54 @@ function importStatements(
       participantRows,
       20,
     ),
-    ...chunkedInsertStatements(
-      env,
-      `INSERT INTO results
-       (id, leaderboard_id, participant_id, result_year, result_month, result_day,
-        is_calendar_date, round_1, round_2, round_3, round_4, round_5,
-        final_score, source_text, created_at, updated_at) VALUES `,
-      resultRows,
-      6,
-    ),
+    ...importResultStatements(env, resultRows),
   ]
+}
+
+function importResultStatements(
+  env: Env,
+  rows: unknown[][],
+): D1PreparedStatement[] {
+  const statements: D1PreparedStatement[] = []
+  const columns = [
+    'id',
+    'leaderboard_id',
+    'participant_id',
+    'result_year',
+    'result_month',
+    'result_day',
+    'is_calendar_date',
+    'round_1',
+    'round_2',
+    'round_3',
+    'round_4',
+    'round_5',
+    'final_score',
+    'source_text',
+    'submission_time',
+  ]
+  for (let index = 0; index < rows.length; index += 6) {
+    const chunk = rows.slice(index, index + 6)
+    const placeholders = chunk.map(
+      (row) => `(${row.map(() => '?').join(', ')})`,
+    ).join(', ')
+    statements.push(
+      env.DB.prepare(
+        `WITH imported (${columns.join(', ')}) AS (VALUES ${placeholders})
+         INSERT INTO results
+         (id, leaderboard_id, participant_id, result_year, result_month, result_day,
+          is_calendar_date, round_1, round_2, round_3, round_4, round_5,
+          final_score, source_text, submission_time, submission_source,
+          groupme_message_id, created_at, updated_at)
+         SELECT id, leaderboard_id, participant_id, result_year, result_month,
+          result_day, is_calendar_date, round_1, round_2, round_3, round_4,
+          round_5, final_score, source_text, submission_time, 'groupme', NULL,
+          submission_time, submission_time
+         FROM imported`,
+      ).bind(...chunk.flat()),
+    )
+  }
+  return statements
 }
 
 function chunkedInsertStatements(
@@ -816,6 +1091,22 @@ function jsonError(
   cookie?: string,
 ): Response {
   return json({ error: { code, message } }, status, url, cookie)
+}
+
+function noContent(url: URL): Response {
+  return withSecurityHeaders(
+    new Response(null, {
+      status: 204,
+      headers: { 'Cache-Control': 'no-store' },
+    }),
+    url,
+  )
+}
+
+function safeLogPath(pathname: string): string {
+  return pathname.startsWith('/api/groupme-callbacks/')
+    ? '/api/groupme-callbacks/[redacted]'
+    : pathname
 }
 
 function withSecurityHeaders(response: Response, url: URL): Response {

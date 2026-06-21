@@ -41,6 +41,9 @@ export interface ResultRow {
   round_4: number
   round_5: number
   final_score: number
+  submission_time: string
+  submission_source: 'legacy' | 'direct' | 'groupme'
+  groupme_message_id: string | null
   created_at: string
   updated_at: string
 }
@@ -73,7 +76,8 @@ export async function getResults(
   const rows = await env.DB.prepare(
     `SELECT r.id, r.participant_id, p.display_name, r.result_year, r.result_month,
             r.result_day, r.is_calendar_date, r.round_1, r.round_2, r.round_3,
-            r.round_4, r.round_5, r.final_score, r.created_at, r.updated_at
+            r.round_4, r.round_5, r.final_score, r.submission_time,
+            r.submission_source, r.groupme_message_id, r.created_at, r.updated_at
      FROM results r
      JOIN participants p ON p.id = r.participant_id
      WHERE r.leaderboard_id = ?`,
