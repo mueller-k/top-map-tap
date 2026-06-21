@@ -1,7 +1,8 @@
 import { randomToken, sha256 } from './crypto'
 
 const COOKIE_NAME = 'mtt_session'
-const SESSION_DURATION_MS = 24 * 60 * 60 * 1000
+// 365 days in milliseconds
+const SESSION_DURATION_MS = 365 * 24 * 60 * 60 * 1000
 
 export interface Session {
   id: string
@@ -135,6 +136,7 @@ export function sessionCookie(session: Session, secure: boolean): string {
     'Path=/',
     'HttpOnly',
     'SameSite=Lax',
+    `Max-Age=${SESSION_DURATION_MS / 1000}`,
     secure ? 'Secure' : '',
   ].filter(Boolean).join('; ')
 }
