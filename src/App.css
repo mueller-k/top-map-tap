@@ -772,6 +772,10 @@ td.score {
   background: transparent;
   font-weight: 750;
 }
+.date-nav button {
+  font-size: 20px;
+  line-height: 1;
+}
 .segmented button.active {
   color: white;
   background: var(--green);
@@ -944,6 +948,11 @@ td.score {
   }
   .section-heading {
     align-items: center;
+  }
+  .date-nav button {
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 24px;
   }
   .step-pill {
     display: none;
