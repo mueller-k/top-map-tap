@@ -61,7 +61,7 @@ A table ranking each participant's highest Final Score through the Current Date 
 _Avoid_: Highest Scores
 
 **Personal Worsts**:
-A table ranking each participant's lowest Final Score through the Current Date and showing the earliest MapTap Date on which that score was achieved. Future Results are excluded; participants without eligible Results appear afterward with an empty score and no rank.
+A table ranking each participant's lowest Final Score through the Current Date in ascending order, so the lowest score is ranked first, and showing the earliest MapTap Date on which that score was achieved. Future Results are excluded; participants without eligible Results appear afterward with an empty score and no rank.
 _Avoid_: Lowest Scores
 
 **Submission**:

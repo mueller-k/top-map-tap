@@ -55,11 +55,15 @@ describe('rankings', () => {
       result('3', 'b', 800, 18),
     ])
     expect(
-      rows.map((row) => [row.participant.name, row.result?.finalScore ?? null]),
+      rows.map((row) => [
+        row.participant.name,
+        row.result?.finalScore ?? null,
+        row.rank,
+      ]),
     ).toEqual([
-      ['Bob', 800],
-      ['Alice', 700],
-      ['Charlie', null],
+      ['Alice', 700, 1],
+      ['Bob', 800, 2],
+      ['Charlie', null, null],
     ])
   })
 

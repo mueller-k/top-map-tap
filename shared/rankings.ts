@@ -11,29 +11,7 @@ export function buildLeaderboard(
   participants: Participant[],
   results: ResultView[],
 ): LeaderboardRow[] {
-  const resultByParticipant = new Map(results.map((result) => [result.participantId, result]))
-  const scored = participants
-    .filter((participant) => resultByParticipant.has(participant.id))
-    .sort((left, right) => {
-      const difference =
-        resultByParticipant.get(right.id)!.finalScore -
-        resultByParticipant.get(left.id)!.finalScore
-      return difference || compareNames(left.name, right.name)
-    })
-  let previousScore: number | null = null
-  let previousRank = 0
-  const ranked = scored.map((participant, index): LeaderboardRow => {
-    const result = resultByParticipant.get(participant.id)!
-    const rank = previousScore === result.finalScore ? previousRank : index + 1
-    previousScore = result.finalScore
-    previousRank = rank
-    return { participant, result, rank }
-  })
-  const empty = participants
-    .filter((participant) => !resultByParticipant.has(participant.id))
-    .sort((left, right) => compareNames(left.name, right.name))
-    .map((participant): LeaderboardRow => ({ participant, result: null, rank: null }))
-  return [...ranked, ...empty]
+  return buildRankedRows(participants, results, 'descending')
 }
 
 export function buildPersonalBests(
@@ -71,7 +49,44 @@ export function buildPersonalWorsts(
       worstByParticipant.set(result.participantId, result)
     }
   }
-  return buildLeaderboard(participants, [...worstByParticipant.values()])
+  return buildRankedRows(
+    participants,
+    [...worstByParticipant.values()],
+    'ascending',
+  )
+}
+
+function buildRankedRows(
+  participants: Participant[],
+  results: ResultView[],
+  direction: 'ascending' | 'descending',
+): LeaderboardRow[] {
+  const resultByParticipant = new Map(results.map((result) => [result.participantId, result]))
+  const scored = participants
+    .filter((participant) => resultByParticipant.has(participant.id))
+    .sort((left, right) => {
+      const leftScore = resultByParticipant.get(left.id)!.finalScore
+      const rightScore = resultByParticipant.get(right.id)!.finalScore
+      const difference =
+        direction === 'ascending'
+          ? leftScore - rightScore
+          : rightScore - leftScore
+      return difference || compareNames(left.name, right.name)
+    })
+  let previousScore: number | null = null
+  let previousRank = 0
+  const ranked = scored.map((participant, index): LeaderboardRow => {
+    const result = resultByParticipant.get(participant.id)!
+    const rank = previousScore === result.finalScore ? previousRank : index + 1
+    previousScore = result.finalScore
+    previousRank = rank
+    return { participant, result, rank }
+  })
+  const empty = participants
+    .filter((participant) => !resultByParticipant.has(participant.id))
+    .sort((left, right) => compareNames(left.name, right.name))
+    .map((participant): LeaderboardRow => ({ participant, result: null, rank: null }))
+  return [...ranked, ...empty]
 }
 
 function compareNames(left: string, right: string): number {
