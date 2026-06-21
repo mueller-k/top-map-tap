@@ -7,7 +7,11 @@ import {
   type Participant,
   type ResultView,
 } from '../shared/domain'
-import { buildLeaderboard, buildPersonalBests } from '../shared/rankings'
+import {
+  buildLeaderboard,
+  buildPersonalBests,
+  buildPersonalWorsts,
+} from '../shared/rankings'
 
 export interface LeaderboardRow {
   id: string
@@ -115,6 +119,7 @@ export async function buildSnapshot(
     ),
     history: historical,
     personalBests: buildPersonalBests(participants, eligible),
+    personalWorsts: buildPersonalWorsts(participants, eligible),
     earliestResultDate: earliest,
     historyDays,
   }

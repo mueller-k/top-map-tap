@@ -23,6 +23,7 @@ import {
   type Participant,
   type ParsedResult,
   type PersonalBestRow,
+  type PersonalWorstRow,
   type ResultView,
 } from "../../shared/domain";
 import { parseMapTapResult } from "../../shared/parser";
@@ -277,6 +278,7 @@ function Leaderboard({
             onDays={setHistoryDays}
           />
           <PersonalBests rows={snapshot.personalBests} />
+          <PersonalWorsts rows={snapshot.personalWorsts} />
         </div>
       ) : (
         <section className="first-result">
@@ -899,6 +901,20 @@ function PersonalBests({ rows }: { rows: PersonalBestRow[] }) {
         <div>
           <p className="eyebrow">Personal bests</p>
           <h2>All-time highs</h2>
+        </div>
+      </div>
+      <RankingTable rows={rows} showDate />
+    </section>
+  );
+}
+
+function PersonalWorsts({ rows }: { rows: PersonalWorstRow[] }) {
+  return (
+    <section className="card widget worst-widget">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Personal worsts</p>
+          <h2>All-time lows</h2>
         </div>
       </div>
       <RankingTable rows={rows} showDate />

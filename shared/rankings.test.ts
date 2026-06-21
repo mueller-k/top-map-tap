@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { Participant, ResultView } from './domain'
-import { buildLeaderboard, buildPersonalBests } from './rankings'
+import {
+  buildLeaderboard,
+  buildPersonalBests,
+  buildPersonalWorsts,
+} from './rankings'
 
 const participants: Participant[] = [
   { id: 'a', name: 'Alice' },
@@ -40,6 +44,29 @@ describe('rankings', () => {
       result('1', 'a', 900, 18),
       result('2', 'a', 900, 17),
       result('3', 'b', 800, 18),
+    ])
+    expect(rows[0].result?.date.day).toBe(17)
+  })
+
+  it('uses each participant’s lowest score for personal worsts', () => {
+    const rows = buildPersonalWorsts(participants, [
+      result('1', 'a', 900, 16),
+      result('2', 'a', 700, 17),
+      result('3', 'b', 800, 18),
+    ])
+    expect(
+      rows.map((row) => [row.participant.name, row.result?.finalScore ?? null]),
+    ).toEqual([
+      ['Bob', 800],
+      ['Alice', 700],
+      ['Charlie', null],
+    ])
+  })
+
+  it('uses the earliest tied personal worst date', () => {
+    const rows = buildPersonalWorsts(participants, [
+      result('1', 'a', 700, 18),
+      result('2', 'a', 700, 17),
     ])
     expect(rows[0].result?.date.day).toBe(17)
   })

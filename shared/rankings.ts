@@ -3,6 +3,7 @@ import {
   type LeaderboardRow,
   type Participant,
   type PersonalBestRow,
+  type PersonalWorstRow,
   type ResultView,
 } from './domain'
 
@@ -52,6 +53,25 @@ export function buildPersonalBests(
     }
   }
   return buildLeaderboard(participants, [...bestByParticipant.values()])
+}
+
+export function buildPersonalWorsts(
+  participants: Participant[],
+  results: ResultView[],
+): PersonalWorstRow[] {
+  const worstByParticipant = new Map<string, ResultView>()
+  for (const result of results) {
+    const current = worstByParticipant.get(result.participantId)
+    if (
+      !current ||
+      result.finalScore < current.finalScore ||
+      (result.finalScore === current.finalScore &&
+        compareDates(result.date, current.date) < 0)
+    ) {
+      worstByParticipant.set(result.participantId, result)
+    }
+  }
+  return buildLeaderboard(participants, [...worstByParticipant.values()])
 }
 
 function compareNames(left: string, right: string): number {

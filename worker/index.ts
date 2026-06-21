@@ -156,6 +156,10 @@ async function routeApi(request: Request, env: Env, url: URL): Promise<Response>
     const snapshot = await buildSnapshot(env, authorized.leaderboard)
     return json({ personalBests: snapshot.personalBests }, 200, url)
   }
+  if (request.method === 'GET' && action === 'personal-worsts') {
+    const snapshot = await buildSnapshot(env, authorized.leaderboard)
+    return json({ personalWorsts: snapshot.personalWorsts }, 200, url)
+  }
   if (request.method === 'POST' && action === 'results') {
     assertMutationRequest(request, url)
     return submitResult(request, env, url, authorized.leaderboard)

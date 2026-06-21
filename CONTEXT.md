@@ -60,6 +60,10 @@ _Avoid_: Historical ranking
 A table ranking each participant's highest Final Score through the Current Date and showing the earliest MapTap Date on which that score was achieved. Future Results are excluded; participants without eligible Results appear afterward with an empty score and no rank.
 _Avoid_: Highest Scores
 
+**Personal Worsts**:
+A table ranking each participant's lowest Final Score through the Current Date and showing the earliest MapTap Date on which that score was achieved. Future Results are excluded; participants without eligible Results appear afterward with an empty score and no rank.
+_Avoid_: Lowest Scores
+
 **Submission**:
 Copied MapTap result text provided for a chosen existing or newly named participant. It is accepted when its date, five Round Scores, and Final Score have the expected structure; the numeric values are not checked for internal consistency.
 _Avoid_: Result
