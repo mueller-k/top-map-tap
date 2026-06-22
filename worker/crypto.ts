@@ -36,6 +36,16 @@ export async function sha256(value: string): Promise<string> {
   return toBase64Url(await crypto.subtle.digest('SHA-256', encoder.encode(value)))
 }
 
+export async function verifySha256(
+  value: string,
+  expectedHash: string,
+): Promise<boolean> {
+  const actual = await crypto.subtle.digest('SHA-256', encoder.encode(value))
+  const expected = fromBase64Url(expectedHash)
+  return actual.byteLength === expected.byteLength &&
+    crypto.subtle.timingSafeEqual(actual, expected)
+}
+
 export function randomToken(byteLength = 32): string {
   return toBase64Url(randomBytes(byteLength))
 }
@@ -86,4 +96,3 @@ function fromBase64Url(value: string): Uint8Array {
   const binary = atob(padded)
   return Uint8Array.from(binary, (character) => character.charCodeAt(0))
 }
-

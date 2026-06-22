@@ -53,6 +53,8 @@ export function CreateLeaderboardPage() {
   const [groupMeLiveImport, setGroupMeLiveImport] = useState(false);
   const [groupMeGroupId, setGroupMeGroupId] = useState("");
   const [groupMeCallbackToken, setGroupMeCallbackToken] = useState("");
+  const [deletionKey, setDeletionKey] = useState("");
+  const [creationRequestId, setCreationRequestId] = useState("");
   const [createdLeaderboard, setCreatedLeaderboard] =
     useState<CreatedLeaderboard | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -66,7 +68,7 @@ export function CreateLeaderboardPage() {
   const workerRef = useRef<Worker | null>(null);
 
   const pathStep = location.pathname.split("/").at(-1);
-  const isGroupMeSetup = pathStep === "groupme-setup";
+  const isCreated = pathStep === "created";
   const step: Step =
     pathStep === "import" || pathStep === "review" ? pathStep : "details";
   const restartMessage =
@@ -82,8 +84,8 @@ export function CreateLeaderboardPage() {
   }, []);
 
   useEffect(() => {
-    if (isGroupMeSetup) {
-      if (!createdLeaderboard || !groupMeCallbackToken) {
+    if (isCreated) {
+      if (!createdLeaderboard || !deletionKey) {
         navigate("/", { replace: true });
         return;
       }
@@ -108,10 +110,10 @@ export function CreateLeaderboardPage() {
   }, [
     detailsComplete,
     createdLeaderboard,
+    deletionKey,
     groupMePreview,
-    groupMeCallbackToken,
     importSource,
-    isGroupMeSetup,
+    isCreated,
     navigate,
     step,
   ]);
@@ -252,6 +254,10 @@ export function CreateLeaderboardPage() {
   async function createLeaderboard() {
     setBusy(true);
     setCreationError("");
+    const nextDeletionKey = deletionKey || randomDeletionKey();
+    const nextCreationRequestId = creationRequestId || crypto.randomUUID();
+    if (!deletionKey) setDeletionKey(nextDeletionKey);
+    if (!creationRequestId) setCreationRequestId(nextCreationRequestId);
     try {
       const importFields =
         importSource === "groupme" && groupMePreview
@@ -269,6 +275,8 @@ export function CreateLeaderboardPage() {
             password,
             confirmPassword,
             turnstileToken,
+            deletionKey: nextDeletionKey,
+            creationRequestId: nextCreationRequestId,
             importSource,
             ...importFields,
             ...(groupMeLiveImport
@@ -281,12 +289,8 @@ export function CreateLeaderboardPage() {
           }),
         },
       );
-      if (groupMeLiveImport) {
-        setCreatedLeaderboard(response.leaderboard);
-        navigate("/create/groupme-setup", { replace: true });
-      } else {
-        navigate(`/d/${response.leaderboard.id}`);
-      }
+      setCreatedLeaderboard(response.leaderboard);
+      navigate("/create/created", { replace: true });
     } catch (requestError) {
       setTurnstileToken("");
       setTurnstileResetKey((value) => value + 1);
@@ -312,14 +316,19 @@ export function CreateLeaderboardPage() {
   if (location.pathname === "/create" || location.pathname === "/create/") {
     return <Navigate to="/create/details" replace />;
   }
-  if (isGroupMeSetup) {
-    if (!createdLeaderboard || !groupMeCallbackToken) return null;
+  if (isCreated) {
+    if (!createdLeaderboard || !deletionKey) return null;
     return (
-      <GroupMeSetup
+      <CreatedLeaderboardSetup
         headingRef={headingRef}
         leaderboard={createdLeaderboard}
-        groupId={groupMeGroupId.trim()}
-        callbackUrl={`${window.location.origin}/api/groupme-callbacks/${groupMeCallbackToken}`}
+        deletionKey={deletionKey}
+        groupId={groupMeLiveImport ? groupMeGroupId.trim() : null}
+        callbackUrl={
+          groupMeLiveImport && groupMeCallbackToken
+            ? `${window.location.origin}/api/groupme-callbacks/${groupMeCallbackToken}`
+            : null
+        }
         onContinue={() => navigate(`/d/${createdLeaderboard.id}`)}
       />
     );
@@ -642,28 +651,33 @@ export function CreateLeaderboardPage() {
   );
 }
 
-function GroupMeSetup({
+function CreatedLeaderboardSetup({
   headingRef,
   leaderboard,
+  deletionKey,
   groupId,
   callbackUrl,
   onContinue,
 }: {
   headingRef: RefObject<HTMLHeadingElement | null>;
   leaderboard: CreatedLeaderboard;
-  groupId: string;
-  callbackUrl: string;
+  deletionKey: string;
+  groupId: string | null;
+  callbackUrl: string | null;
   onContinue: () => void;
 }) {
-  const [copied, setCopied] = useState(false);
-  const [confirmed, setConfirmed] = useState(false);
+  const [copiedDeletionKey, setCopiedDeletionKey] = useState(false);
+  const [copiedCallbackUrl, setCopiedCallbackUrl] = useState(false);
+  const [copyError, setCopyError] = useState("");
 
-  async function copyCallbackUrl() {
+  async function copy(value: string, kind: "deletion" | "callback") {
     try {
-      await navigator.clipboard.writeText(callbackUrl);
-      setCopied(true);
+      await navigator.clipboard.writeText(value);
+      setCopyError("");
+      if (kind === "deletion") setCopiedDeletionKey(true);
+      else setCopiedCallbackUrl(true);
     } catch {
-      setCopied(false);
+      setCopyError("Copy failed. Select the text and copy it manually.");
     }
   }
 
@@ -671,13 +685,13 @@ function GroupMeSetup({
     <div className="create-page">
       <section className="card wizard-card stack-form">
         <div>
-          <p className="eyebrow">One-time GroupMe setup</p>
+          <p className="eyebrow">Leaderboard created</p>
           <h1 ref={headingRef} tabIndex={-1}>
-            Connect your GroupMe bot.
+            Save your deletion key.
           </h1>
           <p className="muted">
-            This Callback URL is shown only now. Copy it before continuing;
-            Top Map Tap cannot recover or replace it.
+            This key is shown only now. Top Map Tap cannot recover or replace
+            it, and the shared password cannot delete this Leaderboard.
           </p>
         </div>
 
@@ -686,69 +700,95 @@ function GroupMeSetup({
             <dt>Leaderboard</dt>
             <dd>{leaderboard.name}</dd>
           </div>
-          <div>
-            <dt>Expected GroupMe group ID</dt>
-            <dd>{groupId}</dd>
-          </div>
+          {groupId && (
+            <div>
+              <dt>Expected GroupMe group ID</dt>
+              <dd>{groupId}</dd>
+            </div>
+          )}
         </dl>
 
         <label>
-          GroupMe Callback URL
+          Deletion Key
           <div className="callback-url-control">
             <input
               readOnly
-              value={callbackUrl}
+              value={deletionKey}
               onFocus={(event) => event.currentTarget.select()}
-              aria-describedby="callback-url-warning"
+              aria-describedby="deletion-key-warning"
             />
             <button
               type="button"
               className="button secondary"
-              onClick={() => void copyCallbackUrl()}
+              onClick={() => void copy(deletionKey, "deletion")}
             >
-              {copied ? "Copied" : "Copy"}
+              {copiedDeletionKey ? "Copied" : "Copy"}
             </button>
           </div>
         </label>
-        <p id="callback-url-warning" className="warning">
-          Anyone with this URL can submit callbacks for this connection. Don’t
-          post it in the chat or share it elsewhere.
+        <p id="deletion-key-warning" className="warning">
+          Anyone with the shared password and this key can permanently delete
+          the Leaderboard and all of its data.
         </p>
 
-        <ol className="setup-steps">
-          <li>
-            Open GroupMe’s{" "}
-            <a
-              className="text-link"
-              href="https://dev.groupme.com/bots"
-              target="_blank"
-              rel="noreferrer"
-            >
-              bot setup page
-            </a>
-            .
-          </li>
-          <li>Create a bot for group ID {groupId}.</li>
-          <li>Paste this URL into the bot’s Callback URL field.</li>
-        </ol>
+        {callbackUrl && groupId && (
+          <div className="stack-form credential-section">
+            <div>
+              <h2>Connect your GroupMe bot</h2>
+              <p className="muted">
+                This Callback URL is also shown only now.
+              </p>
+            </div>
+            <label>
+              GroupMe Callback URL
+              <div className="callback-url-control">
+                <input
+                  readOnly
+                  value={callbackUrl}
+                  onFocus={(event) => event.currentTarget.select()}
+                  aria-describedby="callback-url-warning"
+                />
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => void copy(callbackUrl, "callback")}
+                >
+                  {copiedCallbackUrl ? "Copied" : "Copy"}
+                </button>
+              </div>
+            </label>
+            <p id="callback-url-warning" className="warning">
+              Anyone with this URL can submit callbacks for this connection.
+              Don’t post it in the chat or share it elsewhere.
+            </p>
+            <ol className="setup-steps">
+              <li>
+                Open GroupMe’s{" "}
+                <a
+                  className="text-link"
+                  href="https://dev.groupme.com/bots"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  bot setup page
+                </a>
+                .
+              </li>
+              <li>Create a bot for group ID {groupId}.</li>
+              <li>Paste this URL into the bot’s Callback URL field.</li>
+            </ol>
+          </div>
+        )}
 
-        <label className="checkbox-field">
-          <input
-            type="checkbox"
-            checked={confirmed}
-            onChange={(event) => setConfirmed(event.target.checked)}
-          />
-          I copied the Callback URL
-        </label>
+        {copyError && <p className="form-error">{copyError}</p>}
 
         <div className="wizard-actions setup-actions">
           <span className="field-hint">
-            Closing or refreshing this page loses the URL.
+            Closing or refreshing this page loses these credentials.
           </span>
           <button
             type="button"
             className="button primary"
-            disabled={!confirmed}
             onClick={onContinue}
           >
             Continue to leaderboard
@@ -836,6 +876,14 @@ function plural(value: number, singular: string) {
 }
 
 function randomCallbackToken(): string {
+  return randomUrlToken();
+}
+
+function randomDeletionKey(): string {
+  return `tmt_delete_${randomUrlToken()}`;
+}
+
+function randomUrlToken(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   let binary = "";

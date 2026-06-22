@@ -55,6 +55,8 @@ export interface LeaderboardSnapshot {
     id: string
     name: string
     currentDate: MapTapDate
+    deletionAvailable: boolean
+    hasGroupMeLiveImport: boolean
   }
   participants: Participant[]
   dailyLeaderboard: LeaderboardRow[]

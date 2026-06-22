@@ -18,11 +18,13 @@ import {
   randomLeaderboardId,
   sha256,
   verifyPassword,
+  verifySha256,
 } from './crypto'
 import {
   buildSnapshot,
   currentDate,
   getLeaderboard,
+  getLeaderboardByCreationRequest,
   toResultView,
   type LeaderboardRow,
   type ResultRow,
@@ -41,6 +43,9 @@ const JSON_LIMIT = 8 * 1024
 const CREATE_JSON_LIMIT = 2 * 1024 * 1024
 const GROUPME_CALLBACK_JSON_LIMIT = 8 * 1024
 const GROUPME_CALLBACK_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/
+const DELETION_KEY_PATTERN = /^tmt_delete_[A-Za-z0-9_-]{43}$/
+const CREATION_REQUEST_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const GROUPME_GROUP_ID_PATTERN = /^\d{1,64}$/
 const GROUPME_MESSAGE_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
 const GROUPME_FUTURE_SKEW_MS = 5 * 60 * 1000
@@ -183,13 +188,19 @@ async function routeApi(request: Request, env: Env, url: URL): Promise<Response>
     assertMutationRequest(request, url)
     return submitResult(request, env, url, authorized.leaderboard)
   }
+  if (request.method === 'DELETE' && action === '') {
+    assertMutationRequest(request, url)
+    return deleteLeaderboard(
+      request,
+      env,
+      url,
+      authorized.leaderboard,
+    )
+  }
   return jsonError('NOT_FOUND', 'Not found.', 404, url)
 }
 
 async function createLeaderboard(request: Request, env: Env, url: URL): Promise<Response> {
-  const ip = clientIp(request)
-  const limit = await env.CREATE_RATE_LIMIT.limit({ key: ip })
-  if (!limit.success) return jsonError('RATE_LIMITED', 'Try again shortly.', 429, url)
   const body = await readJson(request, CREATE_JSON_LIMIT)
   const name = stringField(body, 'name')
   const password = stringField(body, 'password')
@@ -199,6 +210,8 @@ async function createLeaderboard(request: Request, env: Env, url: URL): Promise<
   const groupMeLiveImport = body.groupMeLiveImport === true
   const groupMeGroupId = stringField(body, 'groupMeGroupId')
   const groupMeCallbackToken = stringField(body, 'groupMeCallbackToken')
+  const deletionKey = stringField(body, 'deletionKey')
+  const creationRequestId = stringField(body, 'creationRequestId')
   if (!isValidName(name, 60)) {
     return jsonError('INVALID_NAME', 'Leaderboard name must be 1–60 characters.', 400, url)
   }
@@ -216,6 +229,32 @@ async function createLeaderboard(request: Request, env: Env, url: URL): Promise<
       400,
       url,
     )
+  }
+  if (
+    !DELETION_KEY_PATTERN.test(deletionKey) ||
+    !CREATION_REQUEST_ID_PATTERN.test(creationRequestId)
+  ) {
+    return jsonError('INVALID_CREATION_REQUEST', 'Start creation again.', 400, url)
+  }
+  const cleanedName = normalizeName(name).display
+  const creationFingerprint = await fingerprintCreationRequest({
+    name: cleanedName,
+    importSource,
+    groupMeLiveImport,
+    groupMeGroupId: groupMeLiveImport ? groupMeGroupId : '',
+    importCandidates: importSource === 'groupme' ? body.importCandidates : null,
+    importSummary: importSource === 'groupme' ? body.importSummary : null,
+  })
+  const existing = await getLeaderboardByCreationRequest(env, creationRequestId)
+  if (existing) {
+    return completeCreationRetry(request, env, url, existing, {
+      password,
+      deletionKey,
+      creationFingerprint,
+      groupMeLiveImport,
+      groupMeGroupId,
+      groupMeCallbackToken,
+    })
   }
   let imported: ProcessedGroupMeImport | null = null
   if (importSource === 'none') {
@@ -263,6 +302,8 @@ async function createLeaderboard(request: Request, env: Env, url: URL): Promise<
       return jsonError('INVALID_GROUPME_LIVE_IMPORT', 'Invalid GroupMe live import.', 400, url)
     }
   }
+  const limit = await env.CREATE_RATE_LIMIT.limit({ key: clientIp(request) })
+  if (!limit.success) return jsonError('RATE_LIMITED', 'Try again shortly.', 429, url)
   if (!isLocalDevelopmentHost(url.hostname)) {
     const turnstile = await verifyTurnstile(request, env, turnstileToken)
     if (!turnstile) {
@@ -271,8 +312,8 @@ async function createLeaderboard(request: Request, env: Env, url: URL): Promise<
   }
 
   const leaderboardId = randomLeaderboardId()
-  const cleanedName = normalizeName(name).display
   const passwordHash = await hashPassword(password)
+  const deletionKeyHash = await sha256(deletionKey)
   const callbackTokenHash = groupMeLiveImport
     ? await sha256(groupMeCallbackToken)
     : null
@@ -284,8 +325,9 @@ async function createLeaderboard(request: Request, env: Env, url: URL): Promise<
     env.DB.prepare(
       `INSERT INTO leaderboards
        (id, name, password_algorithm, password_iterations, password_salt,
-        password_hash, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        password_hash, deletion_key_hash, creation_request_id,
+        creation_request_fingerprint, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       leaderboardId,
       cleanedName,
@@ -293,6 +335,9 @@ async function createLeaderboard(request: Request, env: Env, url: URL): Promise<
       passwordHash.iterations,
       passwordHash.salt,
       passwordHash.hash,
+      deletionKeyHash,
+      creationRequestId,
+      creationFingerprint,
       now,
     ),
   ]
@@ -320,13 +365,126 @@ async function createLeaderboard(request: Request, env: Env, url: URL): Promise<
       ),
     )
   }
-  await env.DB.batch(statements)
+  try {
+    await env.DB.batch(statements)
+  } catch (error) {
+    const concurrent = await getLeaderboardByCreationRequest(
+      env,
+      creationRequestId,
+    )
+    if (concurrent) {
+      return completeCreationRetry(request, env, url, concurrent, {
+        password,
+        deletionKey,
+        creationFingerprint,
+        groupMeLiveImport,
+        groupMeGroupId,
+        groupMeCallbackToken,
+      })
+    }
+    throw error
+  }
   return json(
     { leaderboard: { id: leaderboardId, name: cleanedName } },
     201,
     url,
     sessionInsert ? sessionCookie(session, url.protocol === 'https:') : undefined,
   )
+}
+
+interface CreationRetryInput {
+  password: string
+  deletionKey: string
+  creationFingerprint: string
+  groupMeLiveImport: boolean
+  groupMeGroupId: string
+  groupMeCallbackToken: string
+}
+
+interface GroupMeCreationRow {
+  callback_token_hash: string
+  group_id: string
+}
+
+async function completeCreationRetry(
+  request: Request,
+  env: Env,
+  url: URL,
+  leaderboard: LeaderboardRow,
+  input: CreationRetryInput,
+): Promise<Response> {
+  const integration = await env.DB.prepare(
+    `SELECT callback_token_hash, group_id
+     FROM groupme_live_imports WHERE leaderboard_id = ?`,
+  ).bind(leaderboard.id).first<GroupMeCreationRow>()
+  const [passwordMatches, deletionKeyMatches, callbackMatches] =
+    await Promise.all([
+      verifyPassword(input.password, passwordRecord(leaderboard)),
+      leaderboard.deletion_key_hash
+        ? verifySha256(input.deletionKey, leaderboard.deletion_key_hash)
+        : Promise.resolve(false),
+      integration
+        ? verifySha256(
+          input.groupMeCallbackToken,
+          integration.callback_token_hash,
+        )
+        : Promise.resolve(!input.groupMeLiveImport),
+    ])
+  const requestMatches =
+    leaderboard.creation_request_fingerprint === input.creationFingerprint &&
+    passwordMatches &&
+    deletionKeyMatches &&
+    (integration !== null) === input.groupMeLiveImport &&
+    (!integration || integration.group_id === input.groupMeGroupId) &&
+    callbackMatches
+  if (!requestMatches) {
+    return jsonError(
+      'CREATION_REQUEST_CONFLICT',
+      'This creation request was already used with different details.',
+      409,
+      url,
+    )
+  }
+
+  const { cookie, statements } =
+    await leaderboardAccessStatements(request, env, leaderboard.id)
+  await env.DB.batch(statements)
+  return json(
+    { leaderboard: { id: leaderboard.id, name: leaderboard.name } },
+    200,
+    url,
+    cookie ?? undefined,
+  )
+}
+
+async function leaderboardAccessStatements(
+  request: Request,
+  env: Env,
+  leaderboardId: string,
+): Promise<{
+  cookie: string | null
+  statements: D1PreparedStatement[]
+}> {
+  const existingSession = await readSession(request, env)
+  const sessionInsert = existingSession ? null : await sessionInsertStatement(env)
+  const session = existingSession ?? sessionInsert!.session
+  const statements: D1PreparedStatement[] = []
+  if (sessionInsert) statements.push(sessionInsert.statement)
+  statements.push(
+    env.DB.prepare(
+      `INSERT INTO session_leaderboards
+       (session_id, leaderboard_id, last_accessed_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT (session_id, leaderboard_id)
+       DO UPDATE SET last_accessed_at = excluded.last_accessed_at`,
+    ).bind(session.id, leaderboardId, new Date().toISOString()),
+  )
+  return {
+    cookie: sessionInsert
+      ? sessionCookie(session, new URL(request.url).protocol === 'https:')
+      : null,
+    statements,
+  }
 }
 
 interface GroupMeLiveImportRow {
@@ -514,6 +672,77 @@ async function verifySharePassword(
       : jsonError('RATE_LIMITED', 'Too many attempts. Try again shortly.', 429, url)
   }
   return json({ verified: true }, 200, url)
+}
+
+async function deleteLeaderboard(
+  request: Request,
+  env: Env,
+  url: URL,
+  leaderboard: LeaderboardRow,
+): Promise<Response> {
+  if (!leaderboard.deletion_key_hash) {
+    return jsonError(
+      'DELETION_UNAVAILABLE',
+      'Leaderboard deletion is unavailable.',
+      404,
+      url,
+    )
+  }
+  const body = await readJson(request)
+  const deletionKey = stringField(body, 'deletionKey')
+  const confirmationName = stringField(body, 'confirmationName')
+  const keyMatches = await verifySha256(
+    deletionKey,
+    leaderboard.deletion_key_hash,
+  )
+  if (!keyMatches || confirmationName !== leaderboard.name) {
+    const [ipLimit, leaderboardLimit] = await Promise.all([
+      env.DELETE_RATE_LIMIT.limit({
+        key: `ip:${clientIp(request)}`,
+      }),
+      env.DELETE_RATE_LIMIT.limit({
+        key: `leaderboard:${leaderboard.id}`,
+      }),
+    ])
+    return ipLimit.success && leaderboardLimit.success
+      ? jsonError(
+        'DELETE_FAILED',
+        'Couldn’t delete leaderboard.',
+        401,
+        url,
+      )
+      : jsonError(
+        'RATE_LIMITED',
+        'Too many attempts. Try again shortly.',
+        429,
+        url,
+      )
+  }
+
+  await env.DB.batch([
+    env.DB.prepare(
+      `DELETE FROM groupme_message_receipts
+       WHERE integration_id IN (
+         SELECT id FROM groupme_live_imports WHERE leaderboard_id = ?
+       )`,
+    ).bind(leaderboard.id),
+    env.DB.prepare(
+      'DELETE FROM groupme_live_imports WHERE leaderboard_id = ?',
+    ).bind(leaderboard.id),
+    env.DB.prepare(
+      'DELETE FROM results WHERE leaderboard_id = ?',
+    ).bind(leaderboard.id),
+    env.DB.prepare(
+      'DELETE FROM participants WHERE leaderboard_id = ?',
+    ).bind(leaderboard.id),
+    env.DB.prepare(
+      'DELETE FROM session_leaderboards WHERE leaderboard_id = ?',
+    ).bind(leaderboard.id),
+    env.DB.prepare(
+      'DELETE FROM leaderboards WHERE id = ? AND deletion_key_hash = ?',
+    ).bind(leaderboard.id, leaderboard.deletion_key_hash),
+  ])
+  return json({ deleted: true }, 200, url)
 }
 
 async function submitResult(
@@ -910,6 +1139,22 @@ function sameDateParts(
   return actual.year === expected.year &&
     actual.month === expected.month &&
     actual.day === expected.day
+}
+
+async function fingerprintCreationRequest(value: unknown): Promise<string> {
+  return sha256(canonicalJson(value))
+}
+
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value) ?? 'null'
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalJson).join(',')}]`
+  }
+  return `{${Object.keys(value).sort().map((key) =>
+    `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`
+  ).join(',')}}`
 }
 
 function importError(

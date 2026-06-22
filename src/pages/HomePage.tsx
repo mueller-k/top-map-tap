@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import type { RecentLeaderboard } from "../../shared/domain";
 import { LEADERBOARD_ID_LENGTH } from "../../shared/domain";
 import { api } from "../api";
 
 export function HomePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [recent, setRecent] = useState<RecentLeaderboard[]>([]);
   const [openValue, setOpenValue] = useState("");
   const [openError, setOpenError] = useState("");
@@ -32,6 +33,11 @@ export function HomePage() {
 
   return (
     <div className="home-page">
+      {location.state?.leaderboardDeleted && (
+        <p className="inline-notice success" role="status">
+          Leaderboard deleted permanently.
+        </p>
+      )}
       <section className="hero-panel">
         <p className="eyebrow">Free MapTap leaderboards</p>
         <h1>Claim your MapTap crown.</h1>

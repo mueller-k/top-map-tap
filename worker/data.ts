@@ -20,6 +20,10 @@ export interface LeaderboardRow {
   password_iterations: number
   password_salt: string
   password_hash: string
+  deletion_key_hash: string | null
+  creation_request_id: string | null
+  creation_request_fingerprint: string | null
+  has_groupme_live_import: number
 }
 
 interface ParticipantRow {
@@ -52,11 +56,35 @@ export async function getLeaderboard(
   env: Env,
   leaderboardId: string,
 ): Promise<LeaderboardRow | null> {
+  return getLeaderboardWhere(env, 'leaderboards.id = ?', leaderboardId)
+}
+
+export async function getLeaderboardByCreationRequest(
+  env: Env,
+  creationRequestId: string,
+): Promise<LeaderboardRow | null> {
+  return getLeaderboardWhere(
+    env,
+    'leaderboards.creation_request_id = ?',
+    creationRequestId,
+  )
+}
+
+function getLeaderboardWhere(
+  env: Env,
+  predicate: string,
+  value: string,
+): Promise<LeaderboardRow | null> {
   return env.DB.prepare(
     `SELECT id, name, password_algorithm, password_iterations,
-            password_salt, password_hash
-     FROM leaderboards WHERE id = ?`,
-  ).bind(leaderboardId).first<LeaderboardRow>()
+            password_salt, password_hash, deletion_key_hash,
+            creation_request_id, creation_request_fingerprint,
+            EXISTS (
+              SELECT 1 FROM groupme_live_imports
+              WHERE leaderboard_id = leaderboards.id
+            ) AS has_groupme_live_import
+     FROM leaderboards WHERE ${predicate}`,
+  ).bind(value).first<LeaderboardRow>()
 }
 
 export async function getParticipants(
@@ -115,6 +143,8 @@ export async function buildSnapshot(
       id: leaderboard.id,
       name: leaderboard.name,
       currentDate: today,
+      deletionAvailable: leaderboard.deletion_key_hash !== null,
+      hasGroupMeLiveImport: leaderboard.has_groupme_live_import === 1,
     },
     participants,
     dailyLeaderboard: buildLeaderboard(

@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   CartesianGrid,
   Line,
@@ -188,10 +188,12 @@ function Leaderboard({
   onSnapshot: (snapshot: LeaderboardSnapshot) => void;
   onExpired: () => void;
 }) {
+  const navigate = useNavigate();
   const [lastRefreshed, setLastRefreshed] = useState(new Date());
   const [refreshError, setRefreshError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [leaderboardDate, setLeaderboardDate] = useState(
     snapshot.leaderboard.currentDate,
   );
@@ -297,6 +299,37 @@ function Leaderboard({
           leaderboardId={snapshot.leaderboard.id}
           leaderboardName={snapshot.leaderboard.name}
           onClose={() => setShareOpen(false)}
+        />
+      )}
+      {snapshot.leaderboard.deletionAvailable && (
+        <section className="danger-zone">
+          <div>
+            <p className="eyebrow">Danger zone</p>
+            <h2>Delete this Leaderboard</h2>
+            <p className="muted">
+              Permanently erase every Participant, Result, import, and saved
+              browser reference.
+            </p>
+          </div>
+          <button
+            className="button danger"
+            onClick={() => setDeleteOpen(true)}
+          >
+            Delete leaderboard
+          </button>
+        </section>
+      )}
+      {deleteOpen && (
+        <DeleteLeaderboardDialog
+          leaderboard={snapshot.leaderboard}
+          onClose={() => setDeleteOpen(false)}
+          onExpired={onExpired}
+          onDeleted={() =>
+            navigate("/", {
+              replace: true,
+              state: { leaderboardDeleted: true },
+            })
+          }
         />
       )}
     </div>
@@ -1033,6 +1066,138 @@ function ShareDialog({
           </button>
         </>
       )}
+    </dialog>
+  );
+}
+
+function DeleteLeaderboardDialog({
+  leaderboard,
+  onClose,
+  onExpired,
+  onDeleted,
+}: {
+  leaderboard: LeaderboardSnapshot["leaderboard"];
+  onClose: () => void;
+  onExpired: () => void;
+  onDeleted: () => void;
+}) {
+  const [deletionKey, setDeletionKey] = useState("");
+  const [confirmationName, setConfirmationName] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    dialogRef.current?.showModal();
+  }, []);
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/api/leaderboards/${leaderboard.id}`, {
+        method: "DELETE",
+        body: JSON.stringify({ deletionKey, confirmationName }),
+      });
+      onDeleted();
+    } catch (requestError) {
+      if (
+        requestError instanceof ApiRequestError &&
+        requestError.code === "ACCESS_REQUIRED"
+      ) {
+        onClose();
+        onExpired();
+        return;
+      }
+      setError(
+        requestError instanceof ApiRequestError
+          ? requestError.message
+          : "Couldn’t delete leaderboard.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className="modal"
+      onCancel={onClose}
+      onClose={onClose}
+    >
+      <div className="modal-heading">
+        <div>
+          <p className="eyebrow">Permanent deletion</p>
+          <h2>Delete {leaderboard.name}?</h2>
+        </div>
+        <button className="icon-button" onClick={onClose} aria-label="Close">
+          ×
+        </button>
+      </div>
+      <p className="warning destructive-warning">
+        This permanently erases the Leaderboard, all Participants and Results,
+        imported history, and every browser’s recent reference. It cannot be
+        undone.
+      </p>
+      {leaderboard.hasGroupMeLiveImport && (
+        <p className="warning destructive-warning">
+          Top Map Tap will disable its callback immediately, but you must
+          delete the GroupMe bot separately.
+        </p>
+      )}
+      <form className="stack-form" onSubmit={submit}>
+        <label>
+          Deletion Key
+          <input
+            type="password"
+            value={deletionKey}
+            onChange={(event) => {
+              setDeletionKey(event.target.value);
+              setError("");
+            }}
+            autoComplete="off"
+            spellCheck={false}
+            required
+            autoFocus
+          />
+        </label>
+        <label>
+          Type <strong>{leaderboard.name}</strong> exactly
+          <input
+            value={confirmationName}
+            onChange={(event) => {
+              setConfirmationName(event.target.value);
+              setError("");
+            }}
+            autoComplete="off"
+            spellCheck={false}
+            required
+          />
+        </label>
+        {error && <p className="form-error">{error}</p>}
+        <div className="modal-actions">
+          <button
+            type="button"
+            className="button ghost"
+            onClick={onClose}
+            disabled={busy}
+          >
+            Cancel
+          </button>
+          <button
+            className="button danger"
+            disabled={
+              busy ||
+              !deletionKey ||
+              confirmationName !== leaderboard.name
+            }
+          >
+            {busy ? "Deleting…" : "Delete permanently"}
+          </button>
+        </div>
+      </form>
     </dialog>
   );
 }

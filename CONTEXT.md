@@ -16,6 +16,18 @@ _Avoid_: Slug, leaderboard name
 Permission to view and submit results within a leaderboard, granted by entering its shared password for a browser session.
 _Avoid_: Login, membership, authentication
 
+**Leaderboard Deletion Access**:
+Permission to permanently delete a Leaderboard and everything it contains, granted by combining Leaderboard Access with its Deletion Key. Neither credential grants Leaderboard Deletion Access alone.
+_Avoid_: Leaderboard Access, admin account, ownership
+
+**Deletion Key**:
+A high-entropy credential generated and revealed once when a Leaderboard is created, then held by its creator. The unrecoverable key is required alongside Leaderboard Access for deletion and is distinct from the shared leaderboard password.
+_Avoid_: Admin password, recovery code, owner token
+
+**Leaderboard Deletion**:
+The immediate, permanent removal of a Leaderboard and everything it contains, including Participants, Results, imports, and references from Recent Leaderboards. After deletion, its shared URL and integration callbacks are unavailable.
+_Avoid_: Archive, deactivate, reset
+
 **Recent Leaderboards**:
 Leaderboards accessed during the current browser session, surfaced on that browser's homepage and forgotten when the session ends.
 _Avoid_: Leaderboard directory, favorites

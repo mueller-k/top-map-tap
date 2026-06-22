@@ -1,8 +1,31 @@
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import worker, {
   acceptedGroupMeSubmission,
   isLocalDevelopmentHost,
 } from './index'
+import { sha256 } from './crypto'
+
+const CREATION_REQUEST_ID = '123e4567-e89b-42d3-a456-426614174000'
+const DELETION_KEY = `tmt_delete_${'D'.repeat(43)}`
+
+beforeAll(() => {
+  if (typeof crypto.subtle.timingSafeEqual === 'function') return
+  Object.defineProperty(crypto.subtle, 'timingSafeEqual', {
+    value(
+      left: ArrayBuffer | ArrayBufferView,
+      right: ArrayBuffer | ArrayBufferView,
+    ) {
+      const leftBytes = asBytes(left)
+      const rightBytes = asBytes(right)
+      if (leftBytes.byteLength !== rightBytes.byteLength) return false
+      let difference = 0
+      for (let index = 0; index < leftBytes.byteLength; index += 1) {
+        difference |= leftBytes[index] ^ rightBytes[index]
+      }
+      return difference === 0
+    },
+  })
+})
 
 describe('worker', () => {
   it('serves a minimal health response with security headers', async () => {
@@ -47,19 +70,12 @@ describe('worker', () => {
   it('creates a leaderboard atomically with an explicit no-import branch', async () => {
     const database = fakeDatabase()
     const response = await worker.fetch(
-      new Request('http://localhost/api/leaderboards', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Map-Tap-Request': '1',
-        },
-        body: JSON.stringify({
-          name: 'Map friends',
-          password: 'password1',
-          confirmPassword: 'password1',
-          turnstileToken: '',
-          importSource: 'none',
-        }),
+      creationRequest({
+        name: 'Map friends',
+        password: 'password1',
+        confirmPassword: 'password1',
+        turnstileToken: '',
+        importSource: 'none',
       }),
       {
         DB: database.binding,
@@ -70,6 +86,9 @@ describe('worker', () => {
     expect(response.status).toBe(201)
     expect(database.batches).toHaveLength(1)
     expect(database.batches[0]).toHaveLength(3)
+    const leaderboardInsert = database.batches[0][0]
+    expect(leaderboardInsert.values).not.toContain(DELETION_KEY)
+    expect(leaderboardInsert.values).toContain(CREATION_REQUEST_ID)
   })
 
   it('rejects an ambiguous creation request without an import source', async () => {
@@ -174,6 +193,215 @@ describe('worker', () => {
     expect(integration?.values).toContain('1234567890')
     expect(integration?.values).not.toContain(callbackToken)
     await expect(response.json()).resolves.not.toHaveProperty('callbackToken')
+  })
+
+  it('returns an existing leaderboard for an identical creation retry', async () => {
+    const firstDatabase = fakeDatabase()
+    const requestBody = {
+      name: 'Map friends',
+      password: 'password1',
+      confirmPassword: 'password1',
+      turnstileToken: '',
+      importSource: 'none',
+    }
+    const created = await worker.fetch(
+      creationRequest(requestBody),
+      creationEnv(firstDatabase),
+    )
+    expect(created.status).toBe(201)
+    const values = firstDatabase.batches[0][0].values
+    const existing: Record<string, unknown> = {
+      id: values[0],
+      name: values[1],
+      password_algorithm: values[2],
+      password_iterations: values[3],
+      password_salt: values[4],
+      password_hash: values[5],
+      deletion_key_hash: values[6],
+      creation_request_id: values[7],
+      creation_request_fingerprint: values[8],
+      has_groupme_live_import: 0,
+    }
+    const retryDatabase = fakeDatabase((sql) =>
+      sql.includes('leaderboards.creation_request_id') ? existing : null)
+    const retried = await worker.fetch(
+      creationRequest(requestBody),
+      creationEnv(retryDatabase),
+    )
+
+    expect(retried.status).toBe(200)
+    await expect(retried.json()).resolves.toEqual({
+      leaderboard: { id: values[0], name: 'Map friends' },
+    })
+    expect(retryDatabase.batches).toHaveLength(1)
+    expect(retryDatabase.batches[0].some((statement) =>
+      statement.sql.includes('session_leaderboards'))).toBe(true)
+  })
+
+  it('rejects a reused creation request ID with different details', async () => {
+    const firstDatabase = fakeDatabase()
+    await worker.fetch(
+      creationRequest({
+        name: 'Map friends',
+        password: 'password1',
+        confirmPassword: 'password1',
+        turnstileToken: '',
+        importSource: 'none',
+      }),
+      creationEnv(firstDatabase),
+    )
+    const values = firstDatabase.batches[0][0].values
+    const existing: Record<string, unknown> = {
+      id: values[0],
+      name: values[1],
+      password_algorithm: values[2],
+      password_iterations: values[3],
+      password_salt: values[4],
+      password_hash: values[5],
+      deletion_key_hash: values[6],
+      creation_request_id: values[7],
+      creation_request_fingerprint: values[8],
+      has_groupme_live_import: 0,
+    }
+    const retryDatabase = fakeDatabase((sql) =>
+      sql.includes('leaderboards.creation_request_id') ? existing : null)
+    const response = await worker.fetch(
+      creationRequest({
+        name: 'Different name',
+        password: 'password1',
+        confirmPassword: 'password1',
+        turnstileToken: '',
+        importSource: 'none',
+      }),
+      creationEnv(retryDatabase),
+    )
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'CREATION_REQUEST_CONFLICT' },
+    })
+    expect(retryDatabase.batches).toHaveLength(0)
+  })
+
+  it('deletes all leaderboard data in one child-first batch', async () => {
+    const deletionKeyHash = await sha256(DELETION_KEY)
+    const database = fakeDatabase((sql) => {
+      if (sql.includes('FROM sessions WHERE token_hash')) {
+        return {
+          id: 'session-1',
+          expires_at: '2099-01-01T00:00:00.000Z',
+        }
+      }
+      if (sql.includes('session_leaderboards WHERE session_id')) {
+        return { allowed: 1 }
+      }
+      if (sql.includes('FROM leaderboards WHERE leaderboards.id')) {
+        return {
+          id: 'leaderboard-1',
+          name: 'Map friends',
+          password_algorithm: 'PBKDF2-SHA-256',
+          password_iterations: 100_000,
+          password_salt: 'AAAAAAAAAAAAAAAAAAAAAA',
+          password_hash: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+          deletion_key_hash: deletionKeyHash,
+          creation_request_id: CREATION_REQUEST_ID,
+          creation_request_fingerprint: 'fingerprint',
+          has_groupme_live_import: 1,
+        }
+      }
+      return null
+    })
+    const response = await worker.fetch(
+      new Request('http://localhost/api/leaderboards/leaderboard1', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Map-Tap-Request': '1',
+          Cookie: 'mtt_session=session-token',
+        },
+        body: JSON.stringify({
+          deletionKey: DELETION_KEY,
+          confirmationName: 'Map friends',
+        }),
+      }),
+      {
+        DB: database.binding,
+        DELETE_RATE_LIMIT: { limit: async () => ({ success: true }) },
+      } as unknown as Env,
+    )
+
+    expect(response.status).toBe(200)
+    expect(database.batches).toHaveLength(1)
+    expect(database.batches[0].map((statement) => statement.sql)).toEqual([
+      expect.stringContaining('DELETE FROM groupme_message_receipts'),
+      expect.stringContaining('DELETE FROM groupme_live_imports'),
+      expect.stringContaining('DELETE FROM results'),
+      expect.stringContaining('DELETE FROM participants'),
+      expect.stringContaining('DELETE FROM session_leaderboards'),
+      expect.stringContaining('DELETE FROM leaderboards'),
+    ])
+  })
+
+  it('rate limits failed deletion attempts by IP and leaderboard', async () => {
+    const deletionKeyHash = await sha256(DELETION_KEY)
+    const database = fakeDatabase((sql) => {
+      if (sql.includes('FROM sessions WHERE token_hash')) {
+        return {
+          id: 'session-1',
+          expires_at: '2099-01-01T00:00:00.000Z',
+        }
+      }
+      if (sql.includes('session_leaderboards WHERE session_id')) {
+        return { allowed: 1 }
+      }
+      if (sql.includes('FROM leaderboards WHERE leaderboards.id')) {
+        return {
+          id: 'leaderboard-1',
+          name: 'Map friends',
+          password_algorithm: 'PBKDF2-SHA-256',
+          password_iterations: 100_000,
+          password_salt: 'AAAAAAAAAAAAAAAAAAAAAA',
+          password_hash: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+          deletion_key_hash: deletionKeyHash,
+          creation_request_id: CREATION_REQUEST_ID,
+          creation_request_fingerprint: 'fingerprint',
+          has_groupme_live_import: 0,
+        }
+      }
+      return null
+    })
+    const rateLimitKeys: string[] = []
+    const response = await worker.fetch(
+      new Request('http://localhost/api/leaderboards/leaderboard1', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Map-Tap-Request': '1',
+          'CF-Connecting-IP': '192.0.2.1',
+          Cookie: 'mtt_session=session-token',
+        },
+        body: JSON.stringify({
+          deletionKey: `tmt_delete_${'X'.repeat(43)}`,
+          confirmationName: 'Map friends',
+        }),
+      }),
+      {
+        DB: database.binding,
+        DELETE_RATE_LIMIT: {
+          limit: async ({ key }: { key: string }) => {
+            rateLimitKeys.push(key)
+            return { success: true }
+          },
+        },
+      } as unknown as Env,
+    )
+
+    expect(response.status).toBe(401)
+    expect(rateLimitKeys).toEqual([
+      'ip:192.0.2.1',
+      'leaderboard:leaderboard-1',
+    ])
+    expect(database.batches).toHaveLength(0)
   })
 
   it('rejects an import when authoritative processing no longer matches the preview', async () => {
@@ -390,7 +618,11 @@ function creationRequest(body: Record<string, unknown>) {
       'Content-Type': 'application/json',
       'X-Map-Tap-Request': '1',
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      deletionKey: DELETION_KEY,
+      creationRequestId: CREATION_REQUEST_ID,
+      ...body,
+    }),
   })
 }
 
@@ -439,4 +671,22 @@ class FakeStatement {
   async first() {
     return this.firstResult(this.sql, this.values)
   }
+
+  async run() {
+    return { success: true, meta: { changes: 1 } }
+  }
+
+  async all() {
+    const result = this.firstResult(this.sql, this.values)
+    return {
+      success: true,
+      results: Array.isArray(result) ? result : result ? [result] : [],
+    }
+  }
+}
+
+function asBytes(value: ArrayBuffer | ArrayBufferView): Uint8Array {
+  return value instanceof ArrayBuffer
+    ? new Uint8Array(value)
+    : new Uint8Array(value.buffer, value.byteOffset, value.byteLength)
 }
