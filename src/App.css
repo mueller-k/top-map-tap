@@ -775,8 +775,56 @@ td.score {
   text-align: center;
 }
 .round-score.gold {
-  color: #684600;
-  background: #f5cf62;
+  position: relative;
+  overflow: hidden;
+  color: #624000;
+  background: linear-gradient(135deg, #f2b933 0%, #ffe995 48%, #d99b17 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    inset 0 -1px 0 rgba(133, 82, 0, 0.16),
+    0 1px 3px rgba(168, 112, 0, 0.2);
+  text-shadow: 0 1px 0 rgba(255, 249, 214, 0.5);
+}
+.round-score.gold::after {
+  position: absolute;
+  top: -100%;
+  left: -70%;
+  width: 42%;
+  height: 300%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.82),
+    transparent
+  );
+  content: "";
+  pointer-events: none;
+  transform: rotate(18deg);
+  animation: gold-shine 3s ease-in-out infinite;
+}
+@keyframes gold-shine {
+  0%,
+  52% {
+    opacity: 0;
+    transform: translateX(0) rotate(18deg);
+  }
+  62% {
+    opacity: 1;
+  }
+  82% {
+    opacity: 1;
+    transform: translateX(430%) rotate(18deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(430%) rotate(18deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .round-score.gold::after {
+    animation: none;
+    opacity: 0;
+  }
 }
 .round-score.green {
   color: #174f36;
