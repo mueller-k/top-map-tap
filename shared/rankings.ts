@@ -119,7 +119,7 @@ export function buildAllTimeWins(
 ): AllTimeWinRow[] {
   const winnersByDate = new Map<
     string,
-    { score: number; participantIds: Set<string> }
+    { date: ResultView['date']; score: number; participantIds: Set<string> }
   >()
 
   for (const result of results) {
@@ -127,6 +127,7 @@ export function buildAllTimeWins(
     const current = winnersByDate.get(key)
     if (!current || result.finalScore > current.score) {
       winnersByDate.set(key, {
+        date: result.date,
         score: result.finalScore,
         participantIds: new Set([result.participantId]),
       })
@@ -135,31 +136,65 @@ export function buildAllTimeWins(
     }
   }
 
-  const winCounts = new Map(participants.map((participant) => [participant.id, 0]))
-  for (const { participantIds } of winnersByDate.values()) {
+  const winsByParticipant = new Map(
+    participants.map((participant) => [
+      participant.id,
+      { winCount: 0, lastWinDate: null as ResultView['date'] | null },
+    ]),
+  )
+  for (const { date, participantIds } of winnersByDate.values()) {
     for (const participantId of participantIds) {
-      winCounts.set(participantId, (winCounts.get(participantId) ?? 0) + 1)
+      const wins = winsByParticipant.get(participantId) ?? {
+        winCount: 0,
+        lastWinDate: null,
+      }
+      wins.winCount += 1
+      if (!wins.lastWinDate || compareDates(date, wins.lastWinDate) > 0) {
+        wins.lastWinDate = date
+      }
+      winsByParticipant.set(participantId, wins)
     }
   }
 
   const rows = participants
-    .map((participant) => ({
-      participant,
-      winCount: winCounts.get(participant.id) ?? 0,
-    }))
+    .map((participant) => {
+      const wins = winsByParticipant.get(participant.id)
+      return {
+        participant,
+        winCount: wins?.winCount ?? 0,
+        lastWinDate: wins?.lastWinDate ?? null,
+      }
+    })
     .sort((left, right) =>
       right.winCount - left.winCount ||
+      compareOptionalDatesDescending(left.lastWinDate, right.lastWinDate) ||
       compareNames(left.participant.name, right.participant.name))
 
   let previousWinCount: number | null = null
+  let previousLastWinDate: ResultView['date'] | null = null
   let previousRank = 0
   return rows.map((row, index): AllTimeWinRow => {
     const rank =
-      previousWinCount === row.winCount ? previousRank : index + 1
+      index > 0 &&
+      previousWinCount === row.winCount &&
+      compareOptionalDatesDescending(previousLastWinDate, row.lastWinDate) === 0
+        ? previousRank
+        : index + 1
     previousWinCount = row.winCount
+    previousLastWinDate = row.lastWinDate
     previousRank = rank
     return { ...row, rank }
   })
+}
+
+function compareOptionalDatesDescending(
+  left: ResultView['date'] | null,
+  right: ResultView['date'] | null,
+): number {
+  if (left && right) return compareDates(right, left)
+  if (left) return -1
+  if (right) return 1
+  return 0
 }
 
 function buildRankedRows(

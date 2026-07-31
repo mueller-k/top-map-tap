@@ -61,6 +61,7 @@ export interface AllTimeWinRow {
   participant: Participant
   rank: number
   winCount: number
+  lastWinDate: MapTapDate | null
 }
 
 export interface LeaderboardSnapshot {

@@ -1008,12 +1008,13 @@ function AllTimeWins({ rows }: { rows: AllTimeWinRow[] }) {
         </div>
       </div>
       <div className="table-wrap">
-        <table aria-label="All-time daily win counts">
+        <table aria-label="All-time daily win counts and last win dates">
           <thead>
             <tr>
               <th>Rank</th>
               <th>Participant</th>
               <th>Wins</th>
+              <th>Last win</th>
             </tr>
           </thead>
           <tbody>
@@ -1022,6 +1023,9 @@ function AllTimeWins({ rows }: { rows: AllTimeWinRow[] }) {
                 <td className="rank">{row.rank}</td>
                 <td>{row.participant.name}</td>
                 <td className="score">{row.winCount}</td>
+                <td className="result-date">
+                  {row.lastWinDate ? formatDate(row.lastWinDate) : "—"}
+                </td>
               </tr>
             ))}
           </tbody>

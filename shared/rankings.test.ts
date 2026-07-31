@@ -128,11 +128,32 @@ describe('rankings', () => {
     expect(rows.map((row) => [
       row.participant.name,
       row.winCount,
+      row.lastWinDate?.day ?? null,
       row.rank,
     ])).toEqual([
-      ['Alice', 2, 1],
-      ['Bob', 1, 2],
-      ['Charlie', 1, 2],
+      ['Alice', 2, 17, 1],
+      ['Bob', 1, 16, 2],
+      ['Charlie', 1, 16, 2],
+    ])
+  })
+
+  it('breaks equal win counts by the latest Last Win Date', () => {
+    const rows = buildAllTimeWins(participants, [
+      result('1', 'a', 900, 15),
+      result('2', 'b', 800, 15),
+      result('3', 'a', 800, 16),
+      result('4', 'b', 900, 16),
+    ])
+
+    expect(rows.map((row) => [
+      row.participant.name,
+      row.winCount,
+      row.lastWinDate?.day ?? null,
+      row.rank,
+    ])).toEqual([
+      ['Bob', 1, 16, 1],
+      ['Alice', 1, 15, 2],
+      ['Charlie', 0, null, 3],
     ])
   })
 
@@ -145,11 +166,12 @@ describe('rankings', () => {
     expect(rows.map((row) => [
       row.participant.name,
       row.winCount,
+      row.lastWinDate?.day ?? null,
       row.rank,
     ])).toEqual([
-      ['Alice', 1, 1],
-      ['Bob', 0, 2],
-      ['Charlie', 0, 2],
+      ['Alice', 1, 15, 1],
+      ['Bob', 0, null, 2],
+      ['Charlie', 0, null, 2],
     ])
   })
 
@@ -159,11 +181,12 @@ describe('rankings', () => {
     expect(rows.map((row) => [
       row.participant.name,
       row.winCount,
+      row.lastWinDate?.day ?? null,
       row.rank,
     ])).toEqual([
-      ['Alice', 0, 1],
-      ['Bob', 0, 1],
-      ['Charlie', 0, 1],
+      ['Alice', 0, null, 1],
+      ['Bob', 0, null, 1],
+      ['Charlie', 0, null, 1],
     ])
   })
 })
