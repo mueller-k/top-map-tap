@@ -61,15 +61,15 @@ A participant's position when Results are ordered by descending Final Score. Equ
 _Avoid_: Place, standing
 
 **Daily Win**:
-A Participant's achievement for having Rank 1 on a Daily Leaderboard as determined by the prevailing Results. It is recalculated when those Results change; tied Rank 1 Participants each earn a Daily Win, and no other Participant needs a Result for that date.
-_Avoid_: First-place win, outright win
+A Participant's achievement for having Rank 1 on a Daily Leaderboard for a MapTap Date before the Current Date, as determined by the prevailing Results. It is recalculated when those Results change; tied Rank 1 Participants each earn a Daily Win, and no other Participant needs a Result for that date.
+_Avoid_: First-place win, outright win, current-day lead
 
 **Last Win Date**:
 The most recent MapTap Date on which a Participant currently has a Daily Win. A Participant with no Daily Wins has no Last Win Date.
 _Avoid_: Last win time, win submission date
 
 **All-Time Wins**:
-A table that competition-ranks every Participant's Daily Wins on valid MapTap Dates through the Current Date, including Participants with zero Daily Wins. Ranking compares Daily Win count and then Last Win Date, both descending; Participants share a Rank only when both match. Future Results and Results on impossible calendar dates are excluded.
+A table that competition-ranks every Participant's Daily Wins on valid MapTap Dates before the Current Date, including Participants with zero Daily Wins. Ranking compares Daily Win count and then Last Win Date, both descending; Participants share a Rank only when both match. Results on the Current Date, future Results, and Results on impossible calendar dates are excluded.
 _Avoid_: First-place totals, recent wins
 
 **Daily Leaderboard**:

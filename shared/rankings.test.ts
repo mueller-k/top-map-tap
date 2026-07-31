@@ -13,6 +13,7 @@ const participants: Participant[] = [
   { id: 'b', name: 'Bob' },
   { id: 'c', name: 'Charlie' },
 ]
+const currentDate = { year: 2026, month: 6, day: 18, isCalendarDate: true }
 
 function result(id: string, participantId: string, finalScore: number, day: number): ResultView {
   return {
@@ -123,7 +124,7 @@ describe('rankings', () => {
       result('4', 'b', 900, 16),
       result('5', 'c', 900, 16),
       result('6', 'a', 850, 17),
-    ])
+    ], currentDate)
 
     expect(rows.map((row) => [
       row.participant.name,
@@ -143,7 +144,7 @@ describe('rankings', () => {
       result('2', 'b', 800, 15),
       result('3', 'a', 800, 16),
       result('4', 'b', 900, 16),
-    ])
+    ], currentDate)
 
     expect(rows.map((row) => [
       row.participant.name,
@@ -161,7 +162,7 @@ describe('rankings', () => {
     const rows = buildAllTimeWins(participants, [
       result('1', 'a', 900, 15),
       result('2', 'b', 800, 15),
-    ])
+    ], currentDate)
 
     expect(rows.map((row) => [
       row.participant.name,
@@ -176,7 +177,7 @@ describe('rankings', () => {
   })
 
   it('gives every participant Rank 1 when every win count is zero', () => {
-    const rows = buildAllTimeWins(participants, [])
+    const rows = buildAllTimeWins(participants, [], currentDate)
 
     expect(rows.map((row) => [
       row.participant.name,
@@ -187,6 +188,58 @@ describe('rankings', () => {
       ['Alice', 0, null, 1],
       ['Bob', 0, null, 1],
       ['Charlie', 0, null, 1],
+    ])
+  })
+
+  it('excludes current-day and future results from daily wins', () => {
+    const impossiblePastResult = result('6', 'c', 1000, 16)
+    impossiblePastResult.date.isCalendarDate = false
+    const rows = buildAllTimeWins(participants, [
+      result('1', 'a', 900, 17),
+      result('2', 'b', 800, 17),
+      result('3', 'a', 700, 18),
+      result('4', 'b', 950, 18),
+      result('5', 'c', 1000, 19),
+      impossiblePastResult,
+    ], currentDate)
+
+    expect(rows.map((row) => [
+      row.participant.name,
+      row.winCount,
+      row.lastWinDate?.day ?? null,
+      row.rank,
+    ])).toEqual([
+      ['Alice', 1, 17, 1],
+      ['Bob', 0, null, 2],
+      ['Charlie', 0, null, 2],
+    ])
+  })
+
+  it('counts a current-day leader after the Current Date advances', () => {
+    const results = [
+      result('1', 'a', 700, 18),
+      result('2', 'b', 950, 18),
+    ]
+
+    const today = buildAllTimeWins(participants, results, currentDate)
+    const tomorrow = buildAllTimeWins(participants, results, {
+      ...currentDate,
+      day: 19,
+    })
+
+    expect(today.map((row) => [row.participant.name, row.winCount])).toEqual([
+      ['Alice', 0],
+      ['Bob', 0],
+      ['Charlie', 0],
+    ])
+    expect(tomorrow.map((row) => [
+      row.participant.name,
+      row.winCount,
+      row.lastWinDate?.day ?? null,
+    ])).toEqual([
+      ['Bob', 1, 18],
+      ['Alice', 0, null],
+      ['Charlie', 0, null],
     ])
   })
 })

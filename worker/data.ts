@@ -157,7 +157,7 @@ export async function buildSnapshot(
     personalBests: buildPersonalBests(participants, eligible),
     personalWorsts: buildPersonalWorsts(participants, eligible),
     allTimeAverages: buildAllTimeAverages(participants, eligible),
-    allTimeWins: buildAllTimeWins(participants, eligible),
+    allTimeWins: buildAllTimeWins(participants, results, today),
     earliestResultDate: earliest,
     historyDays,
   }

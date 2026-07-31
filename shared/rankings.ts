@@ -4,6 +4,7 @@ import {
   compareDates,
   dateKey,
   type LeaderboardRow,
+  type MapTapDate,
   type Participant,
   type PersonalBestRow,
   type PersonalWorstRow,
@@ -116,6 +117,7 @@ export function buildAllTimeAverages(
 export function buildAllTimeWins(
   participants: Participant[],
   results: ResultView[],
+  currentDate: MapTapDate,
 ): AllTimeWinRow[] {
   const winnersByDate = new Map<
     string,
@@ -123,6 +125,12 @@ export function buildAllTimeWins(
   >()
 
   for (const result of results) {
+    if (
+      !result.date.isCalendarDate ||
+      compareDates(result.date, currentDate) >= 0
+    ) {
+      continue
+    }
     const key = dateKey(result.date)
     const current = winnersByDate.get(key)
     if (!current || result.finalScore > current.score) {
