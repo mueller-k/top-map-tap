@@ -7,6 +7,7 @@ import {
   type LeaderboardRow,
   type MapTapDate,
   type Participant,
+  type PerfectResultsRow,
   type PersonalBestRow,
   type PersonalWorstRow,
   type ResultView,
@@ -223,6 +224,60 @@ export function buildHundoHunter(
   return rows.map((row, index): HundoHunterRow => {
     const rank = previousCount === row.hundoCount ? previousRank : index + 1
     previousCount = row.hundoCount
+    previousRank = rank
+    return { ...row, rank }
+  })
+}
+
+export function buildPerfectResults(
+  participants: Participant[],
+  results: ResultView[],
+): PerfectResultsRow[] {
+  const perfections = new Map<
+    string,
+    { perfectResultCount: number; lastPerfectionDate: ResultView['date'] }
+  >()
+  for (const result of results) {
+    if (result.finalScore !== 1000) continue
+    const current = perfections.get(result.participantId)
+    perfections.set(result.participantId, {
+      perfectResultCount: (current?.perfectResultCount ?? 0) + 1,
+      lastPerfectionDate:
+        !current || compareDates(result.date, current.lastPerfectionDate) > 0
+          ? result.date
+          : current.lastPerfectionDate,
+    })
+  }
+
+  const rows = participants
+    .map((participant) => {
+      const perfection = perfections.get(participant.id)
+      return {
+        participant,
+        perfectResultCount: perfection?.perfectResultCount ?? 0,
+        lastPerfectionDate: perfection?.lastPerfectionDate ?? null,
+      }
+    })
+    .sort((left, right) =>
+      right.perfectResultCount - left.perfectResultCount ||
+      compareOptionalDatesDescending(
+        left.lastPerfectionDate,
+        right.lastPerfectionDate,
+      ) ||
+      compareNames(left.participant.name, right.participant.name))
+
+  let previousCount: number | null = null
+  let previousDate: ResultView['date'] | null = null
+  let previousRank = 0
+  return rows.map((row, index): PerfectResultsRow => {
+    const rank =
+      index > 0 &&
+      previousCount === row.perfectResultCount &&
+      compareOptionalDatesDescending(previousDate, row.lastPerfectionDate) === 0
+        ? previousRank
+        : index + 1
+    previousCount = row.perfectResultCount
+    previousDate = row.lastPerfectionDate
     previousRank = rank
     return { ...row, rank }
   })

@@ -5,6 +5,7 @@ import {
   buildAllTimeWins,
   buildHundoHunter,
   buildLeaderboard,
+  buildPerfectResults,
   buildPersonalBests,
   buildPersonalWorsts,
 } from './rankings'
@@ -268,6 +269,43 @@ describe('rankings', () => {
       ['Alice', 3, 1],
       ['Bob', 3, 1],
       ['Charlie', 0, 3],
+    ])
+  })
+
+  it('ranks exact 1000-point results by count and Last Perfection Date', () => {
+    const charlie = result('5', 'c', 999, 18)
+    charlie.roundScores = [100, 100, 100, 100, 100]
+
+    const rows = buildPerfectResults(participants, [
+      result('1', 'a', 1000, 15),
+      result('2', 'a', 1000, 17),
+      result('3', 'b', 1000, 16),
+      result('4', 'b', 1000, 18),
+      charlie,
+    ])
+
+    expect(rows.map((row) => [
+      row.participant.name,
+      row.perfectResultCount,
+      row.lastPerfectionDate?.day ?? null,
+      row.rank,
+    ])).toEqual([
+      ['Bob', 2, 18, 1],
+      ['Alice', 2, 17, 2],
+      ['Charlie', 0, null, 3],
+    ])
+  })
+
+  it('shares a Perfect Results rank only when count and date match', () => {
+    const rows = buildPerfectResults(participants, [
+      result('1', 'a', 1000, 18),
+      result('2', 'b', 1000, 18),
+    ])
+
+    expect(rows.map((row) => [row.participant.name, row.rank])).toEqual([
+      ['Alice', 1],
+      ['Bob', 1],
+      ['Charlie', 3],
     ])
   })
 })

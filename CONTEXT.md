@@ -64,6 +64,18 @@ _Avoid_: Hundred count, perfect score count
 The overall integer score from 0 through 1000 explicitly reported in copied MapTap result text.
 _Avoid_: Total score
 
+**Perfect Result**:
+A prevailing Result whose Final Score is exactly 1000, regardless of its individual Round Scores.
+_Avoid_: Perfect Round, perfect score
+
+**Last Perfection Date**:
+The most recent MapTap Date on which a Participant has an eligible Perfect Result. A Participant with no Perfect Results has no Last Perfection Date.
+_Avoid_: Last Perfection Time, perfect Submission date
+
+**Perfect Results**:
+A table within one Leaderboard that competition-ranks every Participant, including those with zero Perfect Results, by Perfect Result count and then Last Perfection Date, both descending. Participants share a Rank only when both match; Submission and import sources are treated identically, while Results on future or impossible calendar dates do not contribute.
+_Avoid_: Perfect Rounds, flawless games
+
 **Rank**:
 A participant's position when Results are ordered by descending Final Score. Equal Final Scores share a rank using competition ranking, and tied participants are displayed alphabetically.
 _Avoid_: Place, standing

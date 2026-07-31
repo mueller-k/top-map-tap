@@ -70,6 +70,13 @@ export interface HundoHunterRow {
   hundoCount: number
 }
 
+export interface PerfectResultsRow {
+  participant: Participant
+  rank: number
+  perfectResultCount: number
+  lastPerfectionDate: MapTapDate | null
+}
+
 export interface LeaderboardSnapshot {
   leaderboard: {
     id: string
@@ -86,6 +93,7 @@ export interface LeaderboardSnapshot {
   allTimeAverages: AllTimeAverageRow[]
   allTimeWins: AllTimeWinRow[]
   hundoHunter: HundoHunterRow[]
+  perfectResults: PerfectResultsRow[]
   earliestResultDate: MapTapDate | null
   historyDays: 7 | 30
 }

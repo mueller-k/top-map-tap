@@ -25,6 +25,7 @@ import {
   type MapTapDate,
   type Participant,
   type ParsedResult,
+  type PerfectResultsRow,
   type PersonalBestRow,
   type PersonalWorstRow,
   type ResultView,
@@ -288,6 +289,7 @@ function Leaderboard({
             <AllTimeAverages rows={snapshot.allTimeAverages} />
             <AllTimeWins rows={snapshot.allTimeWins} />
             <HundoHunter rows={snapshot.hundoHunter} />
+            <PerfectResults rows={snapshot.perfectResults} />
           </div>
         </div>
       ) : (
@@ -1042,7 +1044,7 @@ function HundoHunter({ rows }: { rows: HundoHunterRow[] }) {
     <section className="card widget hundo-widget">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Perfect rounds</p>
+          <p className="eyebrow">Personal accuracy</p>
           <h2>Hundo Hunter</h2>
         </div>
       </div>
@@ -1061,6 +1063,45 @@ function HundoHunter({ rows }: { rows: HundoHunterRow[] }) {
                 <td className="rank">{row.rank}</td>
                 <td>{row.participant.name}</td>
                 <td className="score">{row.hundoCount}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function PerfectResults({ rows }: { rows: PerfectResultsRow[] }) {
+  return (
+    <section className="card widget perfection-widget">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Personal perfection</p>
+          <h2>Perfect Results</h2>
+        </div>
+      </div>
+      <div className="table-wrap">
+        <table aria-label="All-time Perfect Result counts and last perfection dates">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Participant</th>
+              <th>Perfect Results</th>
+              <th>Last Perfection</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.participant.id}>
+                <td className="rank">{row.rank}</td>
+                <td>{row.participant.name}</td>
+                <td className="score">{row.perfectResultCount}</td>
+                <td className="result-date">
+                  {row.lastPerfectionDate
+                    ? formatDate(row.lastPerfectionDate)
+                    : "—"}
+                </td>
               </tr>
             ))}
           </tbody>

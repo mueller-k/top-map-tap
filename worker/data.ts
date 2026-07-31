@@ -12,6 +12,7 @@ import {
   buildAllTimeWins,
   buildHundoHunter,
   buildLeaderboard,
+  buildPerfectResults,
   buildPersonalBests,
   buildPersonalWorsts,
 } from '../shared/rankings'
@@ -160,6 +161,7 @@ export async function buildSnapshot(
     allTimeAverages: buildAllTimeAverages(participants, eligible),
     allTimeWins: buildAllTimeWins(participants, results, today),
     hundoHunter: buildHundoHunter(participants, eligible),
+    perfectResults: buildPerfectResults(participants, eligible),
     earliestResultDate: earliest,
     historyDays,
   }
