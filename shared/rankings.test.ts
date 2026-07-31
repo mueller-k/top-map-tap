@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Participant, ResultView } from './domain'
 import {
+  buildAllTimeAverages,
   buildLeaderboard,
   buildPersonalBests,
   buildPersonalWorsts,
@@ -73,5 +74,43 @@ describe('rankings', () => {
       result('2', 'a', 700, 17),
     ])
     expect(rows[0].result?.date.day).toBe(17)
+  })
+
+  it('ranks rounded all-time averages, breaking ties by result count', () => {
+    const rows = buildAllTimeAverages(participants, [
+      result('1', 'a', 812, 15),
+      result('2', 'a', 813, 16),
+      result('3', 'b', 812, 15),
+      result('4', 'b', 812, 16),
+      result('5', 'b', 813, 17),
+      result('6', 'b', 813, 18),
+    ])
+
+    expect(rows.map((row) => [
+      row.participant.name,
+      row.average,
+      row.resultCount,
+      row.rank,
+    ])).toEqual([
+      ['Bob', 812.5, 4, 1],
+      ['Alice', 812.5, 2, 2],
+      ['Charlie', null, 0, null],
+    ])
+  })
+
+  it('shares an average rank only when average and result count match', () => {
+    const rows = buildAllTimeAverages(participants, [
+      result('1', 'a', 812, 15),
+      result('2', 'a', 813, 16),
+      result('3', 'b', 812, 15),
+      result('4', 'b', 813, 16),
+      result('5', 'c', 812, 15),
+    ])
+
+    expect(rows.map((row) => [row.participant.name, row.rank])).toEqual([
+      ['Alice', 1],
+      ['Bob', 1],
+      ['Charlie', 3],
+    ])
   })
 })

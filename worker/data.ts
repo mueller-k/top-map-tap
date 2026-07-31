@@ -8,6 +8,7 @@ import {
   type ResultView,
 } from '../shared/domain'
 import {
+  buildAllTimeAverages,
   buildLeaderboard,
   buildPersonalBests,
   buildPersonalWorsts,
@@ -154,6 +155,7 @@ export async function buildSnapshot(
     history: historical,
     personalBests: buildPersonalBests(participants, eligible),
     personalWorsts: buildPersonalWorsts(participants, eligible),
+    allTimeAverages: buildAllTimeAverages(participants, eligible),
     earliestResultDate: earliest,
     historyDays,
   }

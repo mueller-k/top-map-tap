@@ -76,6 +76,10 @@ _Avoid_: Highest Scores
 A table ranking each participant's lowest Final Score through the Current Date in ascending order, so the lowest score is ranked first, and showing the earliest MapTap Date on which that score was achieved. Future Results are excluded; participants without eligible Results appear afterward with an empty score and no rank.
 _Avoid_: Lowest Scores
 
+**All-Time Averages**:
+A table ranking each participant's arithmetic mean Final Score across all Results on valid MapTap Dates through the Current Date. Ranking compares the displayed one-decimal average and then the eligible Result count, both descending; participants share a competition Rank only when both match. Future Results and Results on impossible calendar dates are excluded, while participants without eligible Results appear afterward with an empty average, zero Results, and no rank.
+_Avoid_: User averages, lifetime averages
+
 **Submission**:
 Copied MapTap result text provided for a chosen existing or newly named participant. It is accepted when its date, five Round Scores, and Final Score have the expected structure; the numeric values are not checked for internal consistency.
 _Avoid_: Result

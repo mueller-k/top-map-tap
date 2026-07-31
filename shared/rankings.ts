@@ -1,4 +1,5 @@
 import {
+  type AllTimeAverageRow,
   compareDates,
   type LeaderboardRow,
   type Participant,
@@ -54,6 +55,60 @@ export function buildPersonalWorsts(
     [...worstByParticipant.values()],
     'ascending',
   )
+}
+
+export function buildAllTimeAverages(
+  participants: Participant[],
+  results: ResultView[],
+): AllTimeAverageRow[] {
+  const totals = new Map<string, { sum: number; count: number }>()
+  for (const result of results) {
+    const current = totals.get(result.participantId) ?? { sum: 0, count: 0 }
+    current.sum += result.finalScore
+    current.count += 1
+    totals.set(result.participantId, current)
+  }
+
+  const scored = participants
+    .filter((participant) => totals.has(participant.id))
+    .map((participant) => {
+      const total = totals.get(participant.id)!
+      return {
+        participant,
+        average: Math.round((total.sum / total.count) * 10) / 10,
+        resultCount: total.count,
+      }
+    })
+    .sort((left, right) =>
+      right.average - left.average ||
+      right.resultCount - left.resultCount ||
+      compareNames(left.participant.name, right.participant.name))
+
+  let previousAverage: number | null = null
+  let previousCount: number | null = null
+  let previousRank = 0
+  const ranked = scored.map((row, index): AllTimeAverageRow => {
+    const rank =
+      previousAverage === row.average && previousCount === row.resultCount
+        ? previousRank
+        : index + 1
+    previousAverage = row.average
+    previousCount = row.resultCount
+    previousRank = rank
+    return { ...row, rank }
+  })
+
+  const empty = participants
+    .filter((participant) => !totals.has(participant.id))
+    .sort((left, right) => compareNames(left.name, right.name))
+    .map((participant): AllTimeAverageRow => ({
+      participant,
+      rank: null,
+      average: null,
+      resultCount: 0,
+    }))
+
+  return [...ranked, ...empty]
 }
 
 function buildRankedRows(

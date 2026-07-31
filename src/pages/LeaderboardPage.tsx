@@ -17,6 +17,7 @@ import {
   dateRange,
   normalizeName,
   shiftCalendarDate,
+  type AllTimeAverageRow,
   type LeaderboardSnapshot,
   type LeaderboardRow,
   type MapTapDate,
@@ -279,8 +280,11 @@ function Leaderboard({
             days={historyDays}
             onDays={setHistoryDays}
           />
-          <PersonalBests rows={snapshot.personalBests} />
-          <PersonalWorsts rows={snapshot.personalWorsts} />
+          <div className="all-time-grid">
+            <PersonalBests rows={snapshot.personalBests} />
+            <PersonalWorsts rows={snapshot.personalWorsts} />
+            <AllTimeAverages rows={snapshot.allTimeAverages} />
+          </div>
         </div>
       ) : (
         <section className="first-result">
@@ -951,6 +955,43 @@ function PersonalWorsts({ rows }: { rows: PersonalWorstRow[] }) {
         </div>
       </div>
       <RankingTable rows={rows} showDate />
+    </section>
+  );
+}
+
+function AllTimeAverages({ rows }: { rows: AllTimeAverageRow[] }) {
+  return (
+    <section className="card widget average-widget">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Average scores</p>
+          <h2>All-time averages</h2>
+        </div>
+      </div>
+      <div className="table-wrap">
+        <table aria-label="All-time average scores and result counts">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Participant</th>
+              <th>Average</th>
+              <th>Results</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.participant.id}>
+                <td className="rank">{row.rank ?? "—"}</td>
+                <td>{row.participant.name}</td>
+                <td className="score">
+                  {row.average === null ? "—" : row.average.toFixed(1)}
+                </td>
+                <td>{row.resultCount}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
