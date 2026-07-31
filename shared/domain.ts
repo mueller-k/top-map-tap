@@ -64,6 +64,12 @@ export interface AllTimeWinRow {
   lastWinDate: MapTapDate | null
 }
 
+export interface HundoHunterRow {
+  participant: Participant
+  rank: number
+  hundoCount: number
+}
+
 export interface LeaderboardSnapshot {
   leaderboard: {
     id: string
@@ -79,6 +85,7 @@ export interface LeaderboardSnapshot {
   personalWorsts: PersonalWorstRow[]
   allTimeAverages: AllTimeAverageRow[]
   allTimeWins: AllTimeWinRow[]
+  hundoHunter: HundoHunterRow[]
   earliestResultDate: MapTapDate | null
   historyDays: 7 | 30
 }

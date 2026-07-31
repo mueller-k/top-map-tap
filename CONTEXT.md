@@ -52,6 +52,14 @@ _Avoid_: Submission date, entry date
 One of the five ordered integer scores from 0 through 100 parsed from copied MapTap result text. Symbols surrounding a Round Score carry no meaning.
 _Avoid_: Sub-item score
 
+**Hundo**:
+A Round Score of exactly 100 in a prevailing Result. Each such Round Score contributes one Hundo, so one Result may contribute multiple Hundos; Round Scores from replaced Submissions do not count.
+_Avoid_: Perfect Result, 100-point Final Score
+
+**Hundo Hunter**:
+A table within one Leaderboard that competition-ranks every Participant, including those with zero Hundos, by the number of Hundos in their prevailing Results on valid MapTap Dates through the Current Date, regardless of Submission or import source. Equal counts share a Rank, with tied Participants displayed alphabetically; Results on future or impossible calendar dates do not contribute.
+_Avoid_: Hundred count, perfect score count
+
 **Final Score**:
 The overall integer score from 0 through 1000 explicitly reported in copied MapTap result text.
 _Avoid_: Total score

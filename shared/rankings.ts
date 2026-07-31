@@ -3,6 +3,7 @@ import {
   type AllTimeWinRow,
   compareDates,
   dateKey,
+  type HundoHunterRow,
   type LeaderboardRow,
   type MapTapDate,
   type Participant,
@@ -190,6 +191,38 @@ export function buildAllTimeWins(
         : index + 1
     previousWinCount = row.winCount
     previousLastWinDate = row.lastWinDate
+    previousRank = rank
+    return { ...row, rank }
+  })
+}
+
+export function buildHundoHunter(
+  participants: Participant[],
+  results: ResultView[],
+): HundoHunterRow[] {
+  const counts = new Map<string, number>()
+  for (const result of results) {
+    const hundos = result.roundScores.filter((score) => score === 100).length
+    counts.set(
+      result.participantId,
+      (counts.get(result.participantId) ?? 0) + hundos,
+    )
+  }
+
+  const rows = participants
+    .map((participant) => ({
+      participant,
+      hundoCount: counts.get(participant.id) ?? 0,
+    }))
+    .sort((left, right) =>
+      right.hundoCount - left.hundoCount ||
+      compareNames(left.participant.name, right.participant.name))
+
+  let previousCount: number | null = null
+  let previousRank = 0
+  return rows.map((row, index): HundoHunterRow => {
+    const rank = previousCount === row.hundoCount ? previousRank : index + 1
+    previousCount = row.hundoCount
     previousRank = rank
     return { ...row, rank }
   })

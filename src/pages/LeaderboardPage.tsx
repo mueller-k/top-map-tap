@@ -19,6 +19,7 @@ import {
   shiftCalendarDate,
   type AllTimeAverageRow,
   type AllTimeWinRow,
+  type HundoHunterRow,
   type LeaderboardSnapshot,
   type LeaderboardRow,
   type MapTapDate,
@@ -286,6 +287,7 @@ function Leaderboard({
             <PersonalWorsts rows={snapshot.personalWorsts} />
             <AllTimeAverages rows={snapshot.allTimeAverages} />
             <AllTimeWins rows={snapshot.allTimeWins} />
+            <HundoHunter rows={snapshot.hundoHunter} />
           </div>
         </div>
       ) : (
@@ -1026,6 +1028,39 @@ function AllTimeWins({ rows }: { rows: AllTimeWinRow[] }) {
                 <td className="result-date">
                   {row.lastWinDate ? formatDate(row.lastWinDate) : "—"}
                 </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function HundoHunter({ rows }: { rows: HundoHunterRow[] }) {
+  return (
+    <section className="card widget hundo-widget">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Perfect rounds</p>
+          <h2>Hundo Hunter</h2>
+        </div>
+      </div>
+      <div className="table-wrap">
+        <table aria-label="All-time Hundo counts">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Participant</th>
+              <th>Hundos</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.participant.id}>
+                <td className="rank">{row.rank}</td>
+                <td>{row.participant.name}</td>
+                <td className="score">{row.hundoCount}</td>
               </tr>
             ))}
           </tbody>
