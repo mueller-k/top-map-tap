@@ -131,12 +131,13 @@ describe('rankings', () => {
     expect(rows.map((row) => [
       row.participant.name,
       row.winCount,
+      row.winPercentage,
       row.lastWinDate?.day ?? null,
       row.rank,
     ])).toEqual([
-      ['Alice', 2, 17, 1],
-      ['Bob', 1, 16, 2],
-      ['Charlie', 1, 16, 2],
+      ['Alice', 2, 66.7, 17, 1],
+      ['Bob', 1, 50, 16, 2],
+      ['Charlie', 1, 100, 16, 2],
     ])
   })
 
@@ -151,12 +152,13 @@ describe('rankings', () => {
     expect(rows.map((row) => [
       row.participant.name,
       row.winCount,
+      row.winPercentage,
       row.lastWinDate?.day ?? null,
       row.rank,
     ])).toEqual([
-      ['Bob', 1, 16, 1],
-      ['Alice', 1, 15, 2],
-      ['Charlie', 0, null, 3],
+      ['Bob', 1, 50, 16, 1],
+      ['Alice', 1, 50, 15, 2],
+      ['Charlie', 0, null, null, 3],
     ])
   })
 
@@ -169,12 +171,13 @@ describe('rankings', () => {
     expect(rows.map((row) => [
       row.participant.name,
       row.winCount,
+      row.winPercentage,
       row.lastWinDate?.day ?? null,
       row.rank,
     ])).toEqual([
-      ['Alice', 1, 15, 1],
-      ['Bob', 0, null, 2],
-      ['Charlie', 0, null, 2],
+      ['Alice', 1, 100, 15, 1],
+      ['Bob', 0, 0, null, 2],
+      ['Charlie', 0, null, null, 2],
     ])
   })
 
@@ -184,12 +187,13 @@ describe('rankings', () => {
     expect(rows.map((row) => [
       row.participant.name,
       row.winCount,
+      row.winPercentage,
       row.lastWinDate?.day ?? null,
       row.rank,
     ])).toEqual([
-      ['Alice', 0, null, 1],
-      ['Bob', 0, null, 1],
-      ['Charlie', 0, null, 1],
+      ['Alice', 0, null, null, 1],
+      ['Bob', 0, null, null, 1],
+      ['Charlie', 0, null, null, 1],
     ])
   })
 
@@ -208,12 +212,13 @@ describe('rankings', () => {
     expect(rows.map((row) => [
       row.participant.name,
       row.winCount,
+      row.winPercentage,
       row.lastWinDate?.day ?? null,
       row.rank,
     ])).toEqual([
-      ['Alice', 1, 17, 1],
-      ['Bob', 0, null, 2],
-      ['Charlie', 0, null, 2],
+      ['Alice', 1, 100, 17, 1],
+      ['Bob', 0, 0, null, 2],
+      ['Charlie', 0, null, null, 2],
     ])
   })
 
@@ -245,7 +250,7 @@ describe('rankings', () => {
     ])
   })
 
-  it('ranks by Hundos while reporting informational Zero counts', () => {
+  it('breaks equal Hundo counts by fewer Zeros', () => {
     const aliceFirst = result('1', 'a', 900, 15)
     aliceFirst.roundScores = [100, 100, 0, 0, 0]
     const aliceSecond = result('2', 'a', 850, 16)
@@ -268,9 +273,24 @@ describe('rankings', () => {
       row.zeroCount,
       row.rank,
     ])).toEqual([
-      ['Alice', 3, 7, 1],
       ['Bob', 3, 0, 1],
+      ['Alice', 3, 7, 2],
       ['Charlie', 0, 1, 3],
+    ])
+  })
+
+  it('shares a Hundo Hunter rank only when Hundo and Zero counts match', () => {
+    const alice = result('1', 'a', 900, 15)
+    alice.roundScores = [100, 0, 80, 70, 60]
+    const bob = result('2', 'b', 800, 15)
+    bob.roundScores = [100, 0, 90, 80, 70]
+
+    const rows = buildHundoHunter(participants, [alice, bob])
+
+    expect(rows.map((row) => [row.participant.name, row.rank])).toEqual([
+      ['Alice', 1],
+      ['Bob', 1],
+      ['Charlie', 3],
     ])
   })
 

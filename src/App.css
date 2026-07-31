@@ -765,6 +765,59 @@ td {
   padding: 13px 10px;
   border-bottom: 1px solid #eee7dc;
 }
+.column-help {
+  position: relative;
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  white-space: nowrap;
+}
+.column-help-trigger {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--muted);
+  background: transparent;
+  font-size: 14px;
+  line-height: 1;
+}
+.column-help-trigger:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+.column-help-tooltip {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 7px);
+  right: 0;
+  width: 210px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  visibility: hidden;
+  color: var(--ink);
+  background: white;
+  box-shadow: 0 8px 24px rgba(45, 37, 26, 0.16);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: normal;
+  line-height: 1.4;
+  opacity: 0;
+  pointer-events: none;
+  text-transform: none;
+  transition:
+    opacity 120ms ease,
+    visibility 120ms ease;
+}
+.column-help:hover .column-help-tooltip,
+.column-help:focus-within .column-help-tooltip {
+  visibility: visible;
+  opacity: 1;
+}
 td.rank {
   width: 58px;
   color: var(--brand-dark);

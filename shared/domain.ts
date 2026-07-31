@@ -61,6 +61,7 @@ export interface AllTimeWinRow {
   participant: Participant
   rank: number
   winCount: number
+  winPercentage: number | null
   lastWinDate: MapTapDate | null
 }
 

@@ -1016,12 +1016,32 @@ function AllTimeWins({ rows }: { rows: AllTimeWinRow[] }) {
         </div>
       </div>
       <div className="table-wrap">
-        <table aria-label="All-time daily win counts and last win dates">
+        <table aria-label="All-time daily win counts, percentages, and last win dates">
           <thead>
             <tr>
               <th>Rank</th>
               <th>Participant</th>
               <th>Wins</th>
+              <th>
+                <span className="column-help">
+                  Win %
+                  <button
+                    type="button"
+                    className="column-help-trigger"
+                    aria-label="About win percentage"
+                    aria-describedby="win-percentage-tooltip"
+                  >
+                    ⓘ
+                  </button>
+                  <span
+                    className="column-help-tooltip"
+                    id="win-percentage-tooltip"
+                    role="tooltip"
+                  >
+                    How often they take the crown when they play.
+                  </span>
+                </span>
+              </th>
               <th>Last win</th>
             </tr>
           </thead>
@@ -1031,6 +1051,11 @@ function AllTimeWins({ rows }: { rows: AllTimeWinRow[] }) {
                 <td className="rank">{row.rank}</td>
                 <td>{row.participant.name}</td>
                 <td className="score">{row.winCount}</td>
+                <td className="result-date">
+                  {row.winPercentage === null
+                    ? "—"
+                    : `${row.winPercentage.toFixed(1)}%`}
+                </td>
                 <td className="result-date">
                   {row.lastWinDate ? formatDate(row.lastWinDate) : "—"}
                 </td>

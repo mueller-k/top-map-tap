@@ -61,7 +61,7 @@ A Round Score of exactly 0 in a prevailing Result. Each such Round Score contrib
 _Avoid_: Scoreless Result, zero Final Score
 
 **Hundo Hunter**:
-A table within one Leaderboard that competition-ranks every Participant, including those with zero Hundos, by the number of Hundos in their prevailing Results on valid MapTap Dates through the Current Date, regardless of Submission or import source. It also displays each Participant's Zero count from the same Results without using Zeros for ordering or Rank; equal Hundo counts share a Rank and are displayed alphabetically.
+A table within one Leaderboard that competition-ranks every Participant, including those with zero Hundos, by Hundo count descending and then Zero count ascending across their prevailing Results on valid MapTap Dates through the Current Date, regardless of Submission or import source. Participants share a Rank only when both counts match; tied Participants are displayed alphabetically.
 _Avoid_: Hundred count, perfect score count
 
 **Final Score**:
@@ -87,6 +87,14 @@ _Avoid_: Place, standing
 **Daily Win**:
 A Participant's achievement for having Rank 1 on a Daily Leaderboard for a MapTap Date before the Current Date, as determined by the prevailing Results. It is recalculated when those Results change; tied Rank 1 Participants each earn a Daily Win, and no other Participant needs a Result for that date.
 _Avoid_: First-place win, outright win, current-day lead
+
+**Participation Day**:
+A valid MapTap Date before the Current Date on which a Participant has a prevailing Result. Each date contributes at most one Participation Day for that Participant.
+_Avoid_: Submission count, active day
+
+**Win Percentage**:
+A Participant's Daily Win count divided by their Participation Day count; a Participant with no Participation Days has no Win Percentage. It is an individual success rate rather than a share of all Daily Wins, so Participants' Win Percentages need not total 100 percent.
+_Avoid_: Win share, leaderboard win percentage
 
 **Last Win Date**:
 The most recent MapTap Date on which a Participant currently has a Daily Win. A Participant with no Daily Wins has no Last Win Date.

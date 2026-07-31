@@ -125,6 +125,7 @@ export function buildAllTimeWins(
     string,
     { date: ResultView['date']; score: number; participantIds: Set<string> }
   >()
+  const participationDatesByParticipant = new Map<string, Set<string>>()
 
   for (const result of results) {
     if (
@@ -134,6 +135,10 @@ export function buildAllTimeWins(
       continue
     }
     const key = dateKey(result.date)
+    const participationDates =
+      participationDatesByParticipant.get(result.participantId) ?? new Set()
+    participationDates.add(key)
+    participationDatesByParticipant.set(result.participantId, participationDates)
     const current = winnersByDate.get(key)
     if (!current || result.finalScore > current.score) {
       winnersByDate.set(key, {
@@ -169,9 +174,16 @@ export function buildAllTimeWins(
   const rows = participants
     .map((participant) => {
       const wins = winsByParticipant.get(participant.id)
+      const winCount = wins?.winCount ?? 0
+      const participationDayCount =
+        participationDatesByParticipant.get(participant.id)?.size ?? 0
       return {
         participant,
-        winCount: wins?.winCount ?? 0,
+        winCount,
+        winPercentage:
+          participationDayCount === 0
+            ? null
+            : Math.round((winCount / participationDayCount) * 1_000) / 10,
         lastWinDate: wins?.lastWinDate ?? null,
       }
     })
@@ -226,13 +238,20 @@ export function buildHundoHunter(
     })
     .sort((left, right) =>
       right.hundoCount - left.hundoCount ||
+      left.zeroCount - right.zeroCount ||
       compareNames(left.participant.name, right.participant.name))
 
-  let previousCount: number | null = null
+  let previousHundoCount: number | null = null
+  let previousZeroCount: number | null = null
   let previousRank = 0
   return rows.map((row, index): HundoHunterRow => {
-    const rank = previousCount === row.hundoCount ? previousRank : index + 1
-    previousCount = row.hundoCount
+    const rank =
+      previousHundoCount === row.hundoCount &&
+      previousZeroCount === row.zeroCount
+        ? previousRank
+        : index + 1
+    previousHundoCount = row.hundoCount
+    previousZeroCount = row.zeroCount
     previousRank = rank
     return { ...row, rank }
   })
