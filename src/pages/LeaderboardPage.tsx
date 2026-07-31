@@ -255,28 +255,32 @@ function Leaderboard({
       </section>
       {refreshError && <p className="inline-notice error">{refreshError}</p>}
 
-      <ResultForm
-        snapshot={snapshot}
-        historyDays={historyDays}
-        onSnapshot={onSnapshot}
-        onSaved={(date) => {
-          if (
-            date.isCalendarDate &&
-            compareDates(date, snapshot.leaderboard.currentDate) <= 0
-          ) {
-            setLeaderboardDate(date);
-          }
-        }}
-      />
-
-      {hasResults ? (
-        <div className="widget-grid">
+      <div className={hasResults ? "dashboard-primary-grid" : undefined}>
+        <ResultForm
+          snapshot={snapshot}
+          historyDays={historyDays}
+          onSnapshot={onSnapshot}
+          onSaved={(date) => {
+            if (
+              date.isCalendarDate &&
+              compareDates(date, snapshot.leaderboard.currentDate) <= 0
+            ) {
+              setLeaderboardDate(date);
+            }
+          }}
+        />
+        {hasResults && (
           <DailyLeaderboard
             key={`daily-${snapshot.dailyLeaderboard.map((row) => row.result?.updatedAt ?? row.participant.id).join("-")}`}
             snapshot={snapshot}
             selectedDate={leaderboardDate}
             onSelectedDate={setLeaderboardDate}
           />
+        )}
+      </div>
+
+      {hasResults ? (
+        <div className="widget-grid">
           <ScoreHistory
             key={`history-${snapshot.history.map((result) => result.updatedAt).join("-")}`}
             snapshot={snapshot}

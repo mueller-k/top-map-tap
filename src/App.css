@@ -596,6 +596,16 @@ textarea {
   margin-bottom: 24px;
   border-top: 5px solid var(--brand);
 }
+.dashboard-primary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(300px, 0.7fr);
+  gap: 24px;
+  align-items: start;
+  margin-bottom: 24px;
+}
+.dashboard-primary-grid .result-form-card {
+  margin-bottom: 0;
+}
 .result-form-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.65fr);
@@ -994,6 +1004,7 @@ td.score {
 }
 
 @media (max-width: 820px) {
+  .dashboard-primary-grid,
   .result-form-grid,
   .widget-grid,
   .all-time-grid {
