@@ -1045,7 +1045,7 @@ function HundoHunter({ rows }: { rows: HundoHunterRow[] }) {
       <div className="section-heading">
         <div>
           <p className="eyebrow">Personal accuracy</p>
-          <h2>Hundo Hunter</h2>
+          <h2>Hundo Hunter 💯</h2>
         </div>
       </div>
       <div className="table-wrap">
