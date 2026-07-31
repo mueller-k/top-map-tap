@@ -598,13 +598,16 @@ textarea {
 }
 .dashboard-primary-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(300px, 0.7fr);
+  grid-template-columns: minmax(300px, 0.7fr) minmax(0, 1.3fr);
   gap: 24px;
   align-items: start;
   margin-bottom: 24px;
 }
 .dashboard-primary-grid .result-form-card {
   margin-bottom: 0;
+}
+.dashboard-primary-grid .result-form-grid {
+  grid-template-columns: 1fr;
 }
 .result-form-grid {
   display: grid;
