@@ -9,6 +9,7 @@ import {
 } from '../shared/domain'
 import {
   buildAllTimeAverages,
+  buildAllTimeWins,
   buildLeaderboard,
   buildPersonalBests,
   buildPersonalWorsts,
@@ -156,6 +157,7 @@ export async function buildSnapshot(
     personalBests: buildPersonalBests(participants, eligible),
     personalWorsts: buildPersonalWorsts(participants, eligible),
     allTimeAverages: buildAllTimeAverages(participants, eligible),
+    allTimeWins: buildAllTimeWins(participants, eligible),
     earliestResultDate: earliest,
     historyDays,
   }

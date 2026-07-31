@@ -57,6 +57,12 @@ export interface AllTimeAverageRow {
   resultCount: number
 }
 
+export interface AllTimeWinRow {
+  participant: Participant
+  rank: number
+  winCount: number
+}
+
 export interface LeaderboardSnapshot {
   leaderboard: {
     id: string
@@ -71,6 +77,7 @@ export interface LeaderboardSnapshot {
   personalBests: PersonalBestRow[]
   personalWorsts: PersonalWorstRow[]
   allTimeAverages: AllTimeAverageRow[]
+  allTimeWins: AllTimeWinRow[]
   earliestResultDate: MapTapDate | null
   historyDays: 7 | 30
 }

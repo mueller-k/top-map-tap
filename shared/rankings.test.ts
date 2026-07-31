@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Participant, ResultView } from './domain'
 import {
   buildAllTimeAverages,
+  buildAllTimeWins,
   buildLeaderboard,
   buildPersonalBests,
   buildPersonalWorsts,
@@ -111,6 +112,58 @@ describe('rankings', () => {
       ['Alice', 1],
       ['Bob', 1],
       ['Charlie', 3],
+    ])
+  })
+
+  it('counts shared and sole daily wins', () => {
+    const rows = buildAllTimeWins(participants, [
+      result('1', 'a', 900, 15),
+      result('2', 'b', 800, 15),
+      result('3', 'a', 700, 16),
+      result('4', 'b', 900, 16),
+      result('5', 'c', 900, 16),
+      result('6', 'a', 850, 17),
+    ])
+
+    expect(rows.map((row) => [
+      row.participant.name,
+      row.winCount,
+      row.rank,
+    ])).toEqual([
+      ['Alice', 2, 1],
+      ['Bob', 1, 2],
+      ['Charlie', 1, 2],
+    ])
+  })
+
+  it('competition-ranks zero-win participants alphabetically', () => {
+    const rows = buildAllTimeWins(participants, [
+      result('1', 'a', 900, 15),
+      result('2', 'b', 800, 15),
+    ])
+
+    expect(rows.map((row) => [
+      row.participant.name,
+      row.winCount,
+      row.rank,
+    ])).toEqual([
+      ['Alice', 1, 1],
+      ['Bob', 0, 2],
+      ['Charlie', 0, 2],
+    ])
+  })
+
+  it('gives every participant Rank 1 when every win count is zero', () => {
+    const rows = buildAllTimeWins(participants, [])
+
+    expect(rows.map((row) => [
+      row.participant.name,
+      row.winCount,
+      row.rank,
+    ])).toEqual([
+      ['Alice', 0, 1],
+      ['Bob', 0, 1],
+      ['Charlie', 0, 1],
     ])
   })
 })

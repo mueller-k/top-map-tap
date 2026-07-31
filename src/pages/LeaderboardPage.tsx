@@ -18,6 +18,7 @@ import {
   normalizeName,
   shiftCalendarDate,
   type AllTimeAverageRow,
+  type AllTimeWinRow,
   type LeaderboardSnapshot,
   type LeaderboardRow,
   type MapTapDate,
@@ -284,6 +285,7 @@ function Leaderboard({
             <PersonalBests rows={snapshot.personalBests} />
             <PersonalWorsts rows={snapshot.personalWorsts} />
             <AllTimeAverages rows={snapshot.allTimeAverages} />
+            <AllTimeWins rows={snapshot.allTimeWins} />
           </div>
         </div>
       ) : (
@@ -987,6 +989,39 @@ function AllTimeAverages({ rows }: { rows: AllTimeAverageRow[] }) {
                   {row.average === null ? "—" : row.average.toFixed(1)}
                 </td>
                 <td>{row.resultCount}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function AllTimeWins({ rows }: { rows: AllTimeWinRow[] }) {
+  return (
+    <section className="card widget wins-widget">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Daily wins</p>
+          <h2>All-time wins</h2>
+        </div>
+      </div>
+      <div className="table-wrap">
+        <table aria-label="All-time daily win counts">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Participant</th>
+              <th>Wins</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.participant.id}>
+                <td className="rank">{row.rank}</td>
+                <td>{row.participant.name}</td>
+                <td className="score">{row.winCount}</td>
               </tr>
             ))}
           </tbody>

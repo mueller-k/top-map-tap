@@ -60,6 +60,14 @@ _Avoid_: Total score
 A participant's position when Results are ordered by descending Final Score. Equal Final Scores share a rank using competition ranking, and tied participants are displayed alphabetically.
 _Avoid_: Place, standing
 
+**Daily Win**:
+A Participant's achievement for having Rank 1 on a Daily Leaderboard as determined by the prevailing Results. It is recalculated when those Results change; tied Rank 1 Participants each earn a Daily Win, and no other Participant needs a Result for that date.
+_Avoid_: First-place win, outright win
+
+**All-Time Wins**:
+A table that competition-ranks every Participant's Daily Wins on valid MapTap Dates through the Current Date, including Participants with zero Daily Wins. Equal Daily Win counts share a Rank; future Results and Results on impossible calendar dates are excluded.
+_Avoid_: First-place totals, recent wins
+
 **Daily Leaderboard**:
 A table containing every leaderboard participant for one MapTap Date. Participants with Results are ranked by Final Score; participants without Results appear afterward with an empty score and no rank. Viewers can navigate the table to earlier dates.
 _Avoid_: Today's Leaderboard, daily ranking

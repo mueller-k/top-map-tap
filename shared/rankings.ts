@@ -1,6 +1,8 @@
 import {
   type AllTimeAverageRow,
+  type AllTimeWinRow,
   compareDates,
+  dateKey,
   type LeaderboardRow,
   type Participant,
   type PersonalBestRow,
@@ -109,6 +111,55 @@ export function buildAllTimeAverages(
     }))
 
   return [...ranked, ...empty]
+}
+
+export function buildAllTimeWins(
+  participants: Participant[],
+  results: ResultView[],
+): AllTimeWinRow[] {
+  const winnersByDate = new Map<
+    string,
+    { score: number; participantIds: Set<string> }
+  >()
+
+  for (const result of results) {
+    const key = dateKey(result.date)
+    const current = winnersByDate.get(key)
+    if (!current || result.finalScore > current.score) {
+      winnersByDate.set(key, {
+        score: result.finalScore,
+        participantIds: new Set([result.participantId]),
+      })
+    } else if (result.finalScore === current.score) {
+      current.participantIds.add(result.participantId)
+    }
+  }
+
+  const winCounts = new Map(participants.map((participant) => [participant.id, 0]))
+  for (const { participantIds } of winnersByDate.values()) {
+    for (const participantId of participantIds) {
+      winCounts.set(participantId, (winCounts.get(participantId) ?? 0) + 1)
+    }
+  }
+
+  const rows = participants
+    .map((participant) => ({
+      participant,
+      winCount: winCounts.get(participant.id) ?? 0,
+    }))
+    .sort((left, right) =>
+      right.winCount - left.winCount ||
+      compareNames(left.participant.name, right.participant.name))
+
+  let previousWinCount: number | null = null
+  let previousRank = 0
+  return rows.map((row, index): AllTimeWinRow => {
+    const rank =
+      previousWinCount === row.winCount ? previousRank : index + 1
+    previousWinCount = row.winCount
+    previousRank = rank
+    return { ...row, rank }
+  })
 }
 
 function buildRankedRows(
