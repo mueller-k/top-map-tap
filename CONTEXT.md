@@ -56,8 +56,12 @@ _Avoid_: Sub-item score
 A Round Score of exactly 100 in a prevailing Result. Each such Round Score contributes one Hundo, so one Result may contribute multiple Hundos; Round Scores from replaced Submissions do not count.
 _Avoid_: Perfect Result, 100-point Final Score
 
+**Zero**:
+A Round Score of exactly 0 in a prevailing Result. Each such Round Score contributes one Zero, so one Result may contribute multiple Zeros; a Final Score of 0 does not contribute.
+_Avoid_: Scoreless Result, zero Final Score
+
 **Hundo Hunter**:
-A table within one Leaderboard that competition-ranks every Participant, including those with zero Hundos, by the number of Hundos in their prevailing Results on valid MapTap Dates through the Current Date, regardless of Submission or import source. Equal counts share a Rank, with tied Participants displayed alphabetically; Results on future or impossible calendar dates do not contribute.
+A table within one Leaderboard that competition-ranks every Participant, including those with zero Hundos, by the number of Hundos in their prevailing Results on valid MapTap Dates through the Current Date, regardless of Submission or import source. It also displays each Participant's Zero count from the same Results without using Zeros for ordering or Rank; equal Hundo counts share a Rank and are displayed alphabetically.
 _Avoid_: Hundred count, perfect score count
 
 **Final Score**:

@@ -245,14 +245,15 @@ describe('rankings', () => {
     ])
   })
 
-  it('competition-ranks every participant by all 100-point rounds', () => {
+  it('ranks by Hundos while reporting informational Zero counts', () => {
     const aliceFirst = result('1', 'a', 900, 15)
-    aliceFirst.roundScores = [100, 100, 80, 70, 60]
+    aliceFirst.roundScores = [100, 100, 0, 0, 0]
     const aliceSecond = result('2', 'a', 850, 16)
-    aliceSecond.roundScores = [90, 80, 100, 70, 60]
+    aliceSecond.roundScores = [0, 0, 100, 0, 0]
     const bob = result('3', 'b', 800, 15)
     bob.roundScores = [100, 90, 100, 80, 100]
     const charlie = result('4', 'c', 100, 15)
+    charlie.roundScores = [0, 1, 2, 3, 4]
 
     const rows = buildHundoHunter(participants, [
       aliceFirst,
@@ -264,11 +265,12 @@ describe('rankings', () => {
     expect(rows.map((row) => [
       row.participant.name,
       row.hundoCount,
+      row.zeroCount,
       row.rank,
     ])).toEqual([
-      ['Alice', 3, 1],
-      ['Bob', 3, 1],
-      ['Charlie', 0, 3],
+      ['Alice', 3, 7, 1],
+      ['Bob', 3, 0, 1],
+      ['Charlie', 0, 1, 3],
     ])
   })
 

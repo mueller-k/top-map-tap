@@ -68,6 +68,7 @@ export interface HundoHunterRow {
   participant: Participant
   rank: number
   hundoCount: number
+  zeroCount: number
 }
 
 export interface PerfectResultsRow {

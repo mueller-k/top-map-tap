@@ -1053,12 +1053,13 @@ function HundoHunter({ rows }: { rows: HundoHunterRow[] }) {
         </div>
       </div>
       <div className="table-wrap">
-        <table aria-label="All-time Hundo counts">
+        <table aria-label="All-time Hundo and Zero counts">
           <thead>
             <tr>
               <th>Rank</th>
               <th>Participant</th>
               <th>Hundos</th>
+              <th>Zeros</th>
             </tr>
           </thead>
           <tbody>
@@ -1067,6 +1068,7 @@ function HundoHunter({ rows }: { rows: HundoHunterRow[] }) {
                 <td className="rank">{row.rank}</td>
                 <td>{row.participant.name}</td>
                 <td className="score">{row.hundoCount}</td>
+                <td className="score">{row.zeroCount}</td>
               </tr>
             ))}
           </tbody>

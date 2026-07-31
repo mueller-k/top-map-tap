@@ -201,20 +201,29 @@ export function buildHundoHunter(
   participants: Participant[],
   results: ResultView[],
 ): HundoHunterRow[] {
-  const counts = new Map<string, number>()
+  const counts = new Map<string, { hundoCount: number; zeroCount: number }>()
   for (const result of results) {
+    const current = counts.get(result.participantId) ?? {
+      hundoCount: 0,
+      zeroCount: 0,
+    }
     const hundos = result.roundScores.filter((score) => score === 100).length
-    counts.set(
-      result.participantId,
-      (counts.get(result.participantId) ?? 0) + hundos,
-    )
+    const zeros = result.roundScores.filter((score) => score === 0).length
+    counts.set(result.participantId, {
+      hundoCount: current.hundoCount + hundos,
+      zeroCount: current.zeroCount + zeros,
+    })
   }
 
   const rows = participants
-    .map((participant) => ({
-      participant,
-      hundoCount: counts.get(participant.id) ?? 0,
-    }))
+    .map((participant) => {
+      const count = counts.get(participant.id)
+      return {
+        participant,
+        hundoCount: count?.hundoCount ?? 0,
+        zeroCount: count?.zeroCount ?? 0,
+      }
+    })
     .sort((left, right) =>
       right.hundoCount - left.hundoCount ||
       compareNames(left.participant.name, right.participant.name))
