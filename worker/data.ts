@@ -1,5 +1,7 @@
 import {
   compareDates,
+  type Continent,
+  type ContinentScoreTotal,
   dateKey,
   dateRange,
   type LeaderboardSnapshot,
@@ -10,12 +12,14 @@ import {
 import {
   buildAllTimeAverages,
   buildAllTimeWins,
+  buildContinentalPlacements,
   buildHundoHunter,
   buildLeaderboard,
   buildPerfectResults,
   buildPersonalBests,
   buildPersonalWorsts,
 } from '../shared/rankings'
+import { latestEligibleArchiveDate } from './location-types'
 
 export interface LeaderboardRow {
   id: string
@@ -54,6 +58,13 @@ export interface ResultRow {
   groupme_message_id: string | null
   created_at: string
   updated_at: string
+}
+
+interface ContinentScoreTotalRow {
+  participant_id: string
+  continent: Continent
+  score_total: number
+  round_score_count: number
 }
 
 export async function getLeaderboard(
@@ -117,17 +128,62 @@ export async function getResults(
   return rows.results.map(toResultView)
 }
 
+export async function getContinentScoreTotals(
+  env: Env,
+  leaderboardId: string,
+  publishedThrough: MapTapDate,
+): Promise<ContinentScoreTotal[]> {
+  const cutoff =
+    publishedThrough.year * 10_000 +
+    publishedThrough.month * 100 +
+    publishedThrough.day
+  const rows = await env.DB.prepare(
+    `SELECT r.participant_id, rl.continent,
+            SUM(CASE rl.round_number
+              WHEN 1 THEN r.round_1
+              WHEN 2 THEN r.round_2
+              WHEN 3 THEN r.round_3
+              WHEN 4 THEN r.round_4
+              WHEN 5 THEN r.round_5
+            END) AS score_total,
+            COUNT(*) AS round_score_count
+     FROM results r
+     JOIN round_locations rl
+       ON rl.result_year = r.result_year
+      AND rl.result_month = r.result_month
+      AND rl.result_day = r.result_day
+     WHERE r.leaderboard_id = ?
+       AND r.is_calendar_date = 1
+       AND (r.result_year * 10000 + r.result_month * 100 + r.result_day) <= ?
+       AND rl.enrichment_status = 'complete'
+       AND rl.continent IS NOT NULL
+     GROUP BY r.participant_id, rl.continent`,
+  ).bind(leaderboardId, cutoff).all<ContinentScoreTotalRow>()
+  return rows.results.map((row) => ({
+    participantId: row.participant_id,
+    continent: row.continent,
+    scoreTotal: row.score_total,
+    roundScoreCount: row.round_score_count,
+  }))
+}
+
 export async function buildSnapshot(
   env: Env,
   leaderboard: LeaderboardRow,
   historyDays: 7 | 30 = 7,
   leaderboardDate?: MapTapDate,
 ): Promise<LeaderboardSnapshot> {
-  const [participants, results] = await Promise.all([
+  const now = new Date()
+  const today = currentDate(now)
+  const publishedThrough = {
+    ...latestEligibleArchiveDate(now),
+    isCalendarDate: true,
+  }
+  const [participants, results, continentScoreTotals] = await Promise.all([
     getParticipants(env, leaderboard.id),
     getResults(env, leaderboard.id),
+    getContinentScoreTotals(env, leaderboard.id, publishedThrough),
   ])
-  const today = currentDate()
   const selectedDate = leaderboardDate ?? today
   const eligible = results.filter(
     (result) => result.date.isCalendarDate && compareDates(result.date, today) <= 0,
@@ -162,6 +218,10 @@ export async function buildSnapshot(
     allTimeWins: buildAllTimeWins(participants, results, today),
     hundoHunter: buildHundoHunter(participants, eligible),
     perfectResults: buildPerfectResults(participants, eligible),
+    continentalPlacements: buildContinentalPlacements(
+      participants,
+      continentScoreTotals,
+    ),
     earliestResultDate: earliest,
     historyDays,
   }

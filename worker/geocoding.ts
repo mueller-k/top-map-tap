@@ -60,7 +60,10 @@ export async function reverseGeocode(
 
     try {
       const body = await readBoundedText(response, MAX_GEOCODING_BODY_BYTES)
-      return { status: 'complete', enrichment: parseGeocodingResponse(JSON.parse(body)) }
+      const enrichment = parseGeocodingResponse(JSON.parse(body))
+      return enrichment.continent
+        ? { status: 'complete', enrichment }
+        : { status: 'pending', reason: 'google_continent_missing' }
     } catch {
       if (attempt === 5) return { status: 'pending', reason: 'google_invalid_response' }
       await wait(backoff(attempt))

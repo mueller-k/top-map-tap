@@ -2,6 +2,9 @@ import {
   type AllTimeAverageRow,
   type AllTimeWinRow,
   compareDates,
+  CONTINENT_DISPLAY_ORDER,
+  type ContinentPlacements,
+  type ContinentScoreTotal,
   dateKey,
   type HundoHunterRow,
   type LeaderboardRow,
@@ -114,6 +117,70 @@ export function buildAllTimeAverages(
     }))
 
   return [...ranked, ...empty]
+}
+
+export function buildContinentalPlacements(
+  participants: Participant[],
+  totals: ContinentScoreTotal[],
+): ContinentPlacements[] {
+  const participantById = new Map(
+    participants.map((participant) => [participant.id, participant]),
+  )
+  const totalsByContinent = new Map(
+    CONTINENT_DISPLAY_ORDER.map((continent) => [continent, new Map<
+      string,
+      { scoreTotal: number; roundScoreCount: number }
+    >()]),
+  )
+
+  for (const total of totals) {
+    const continentTotals = totalsByContinent.get(total.continent)
+    if (!continentTotals || !participantById.has(total.participantId)) continue
+    const current = continentTotals.get(total.participantId) ?? {
+      scoreTotal: 0,
+      roundScoreCount: 0,
+    }
+    current.scoreTotal += total.scoreTotal
+    current.roundScoreCount += total.roundScoreCount
+    continentTotals.set(total.participantId, current)
+  }
+
+  return CONTINENT_DISPLAY_ORDER.map((continent) => {
+    const standings = [...(totalsByContinent.get(continent)?.entries() ?? [])]
+      .filter(([, total]) => total.roundScoreCount > 0)
+      .map(([participantId, total]) => ({
+        participant: participantById.get(participantId)!,
+        accuracy:
+          Math.round((total.scoreTotal * 100) / total.roundScoreCount) / 100,
+        roundScoreCount: total.roundScoreCount,
+      }))
+      .sort((left, right) =>
+        right.accuracy - left.accuracy ||
+        right.roundScoreCount - left.roundScoreCount ||
+        compareNames(left.participant.name, right.participant.name))
+
+    const placements: ContinentPlacements['placements'] = []
+    for (const standing of standings) {
+      const current = placements.at(-1)
+      if (
+        current &&
+        current.accuracy === standing.accuracy &&
+        current.roundScoreCount === standing.roundScoreCount
+      ) {
+        current.participants.push(standing.participant)
+        continue
+      }
+      if (placements.length === 2) break
+      placements.push({
+        placement: placements.length === 0 ? 1 : 2,
+        participants: [standing.participant],
+        accuracy: standing.accuracy,
+        roundScoreCount: standing.roundScoreCount,
+      })
+    }
+
+    return { continent, placements }
+  })
 }
 
 export function buildAllTimeWins(

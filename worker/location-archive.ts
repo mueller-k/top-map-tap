@@ -218,6 +218,15 @@ export async function enrichPendingLocations(
       }))
       continue
     }
+    if (!result.enrichment.continent) {
+      console.error(JSON.stringify({
+        event: 'location_enrichment_failed',
+        date: formatArchiveDate(rowDate(row)),
+        roundNumber: row.round_number,
+        reason: 'continent_missing',
+      }))
+      continue
+    }
 
     try {
       const enrichment = result.enrichment

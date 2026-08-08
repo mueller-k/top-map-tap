@@ -1,3 +1,5 @@
+import type { Continent as SharedContinent } from '../shared/domain'
+
 export interface ArchiveDate {
   year: number
   month: number
@@ -33,14 +35,7 @@ export interface GeographicEnrichment {
   featureTypes: string[]
 }
 
-export type Continent =
-  | 'Africa'
-  | 'Antarctica'
-  | 'Asia'
-  | 'Europe'
-  | 'North America'
-  | 'Oceania'
-  | 'South America'
+export type Continent = SharedContinent
 
 export function formatArchiveDate(date: ArchiveDate): string {
   return `${date.year}-${String(date.month).padStart(2, '0')}-${String(date.day).padStart(2, '0')}`

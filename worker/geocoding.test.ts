@@ -46,7 +46,7 @@ describe('Google geographic enrichment', () => {
     })
   })
 
-  it('treats an empty or partial successful response as complete', () => {
+  it('parses an empty or partial successful response without inventing fields', () => {
     expect(parseGeocodingResponse({})).toEqual({
       geocodedLatitude: null,
       geocodedLongitude: null,
@@ -92,7 +92,10 @@ describe('Google geographic enrichment', () => {
 
     const result = await reverseGeocode(location, 'secret', { fetcher, sleep: wait })
 
-    expect(result.status).toBe('complete')
+    expect(result).toEqual({
+      status: 'pending',
+      reason: 'google_continent_missing',
+    })
     expect(fetcher).toHaveBeenCalledTimes(6)
     expect(wait).toHaveBeenCalledTimes(5)
     expect(wait).toHaveBeenNthCalledWith(1, 1_000)
@@ -103,6 +106,25 @@ describe('Google geographic enrichment', () => {
     expect(url.searchParams.get('location.latitude')).toBe('38.9784')
     expect(new Headers(init.headers).get('X-Goog-Api-Key')).toBe('secret')
     expect(new Headers(init.headers).get('X-Goog-FieldMask')).not.toContain('formattedAddress')
+  })
+
+  it('completes reverse geocoding only when the response supplies a Continent', async () => {
+    const fetcher = vi.fn().mockResolvedValue(Response.json({
+      results: [{
+        addressComponents: [{
+          longText: 'United States',
+          shortText: 'US',
+          types: ['country'],
+        }],
+      }],
+    }))
+
+    const result = await reverseGeocode(location, 'secret', { fetcher })
+
+    expect(result).toMatchObject({
+      status: 'complete',
+      enrichment: { continent: 'North America' },
+    })
   })
 
   it('does not retry authentication or invalid-request failures', async () => {

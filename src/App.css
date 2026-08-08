@@ -739,6 +739,33 @@ textarea {
 .history-widget {
   grid-column: 1 / -1;
 }
+.continental-widget {
+  grid-column: 1 / -1;
+}
+.continental-scope {
+  margin: 8px 0 4px;
+}
+.continent-cell {
+  width: 170px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 850;
+  letter-spacing: normal;
+  text-transform: none;
+  vertical-align: top;
+}
+.placement-cell {
+  width: 88px;
+  color: var(--brand-dark);
+  font-weight: 900;
+}
+.continental-participants {
+  font-weight: 750;
+}
+.continental-empty {
+  color: var(--muted);
+  font-style: italic;
+}
 .all-time-grid {
   display: grid;
   grid-column: 1 / -1;

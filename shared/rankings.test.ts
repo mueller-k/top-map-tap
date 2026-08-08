@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { Participant, ResultView } from './domain'
+import type { ContinentScoreTotal, Participant, ResultView } from './domain'
 import {
   buildAllTimeAverages,
   buildAllTimeWins,
+  buildContinentalPlacements,
   buildHundoHunter,
   buildLeaderboard,
   buildPerfectResults,
@@ -115,6 +116,85 @@ describe('rankings', () => {
       ['Alice', 1],
       ['Bob', 1],
       ['Charlie', 3],
+    ])
+  })
+
+  it('builds the top two dense Continental Placements in display order', () => {
+    const totals: ContinentScoreTotal[] = [
+      { participantId: 'a', continent: 'North America', scoreTotal: 190, roundScoreCount: 2 },
+      { participantId: 'b', continent: 'North America', scoreTotal: 95, roundScoreCount: 1 },
+      { participantId: 'c', continent: 'North America', scoreTotal: 94, roundScoreCount: 1 },
+      { participantId: 'a', continent: 'Europe', scoreTotal: 190, roundScoreCount: 2 },
+      { participantId: 'b', continent: 'Europe', scoreTotal: 190, roundScoreCount: 2 },
+      { participantId: 'c', continent: 'Europe', scoreTotal: 94, roundScoreCount: 1 },
+    ]
+
+    const groups = buildContinentalPlacements(participants, totals)
+
+    expect(groups.map(({ continent }) => continent)).toEqual([
+      'North America',
+      'Europe',
+      'Asia',
+      'South America',
+      'Africa',
+      'Oceania',
+      'Antarctica',
+    ])
+    expect(groups[0].placements).toEqual([
+      {
+        placement: 1,
+        participants: [{ id: 'a', name: 'Alice' }],
+        accuracy: 95,
+        roundScoreCount: 2,
+      },
+      {
+        placement: 2,
+        participants: [{ id: 'b', name: 'Bob' }],
+        accuracy: 95,
+        roundScoreCount: 1,
+      },
+    ])
+    expect(groups[1].placements).toEqual([
+      {
+        placement: 1,
+        participants: [
+          { id: 'a', name: 'Alice' },
+          { id: 'b', name: 'Bob' },
+        ],
+        accuracy: 95,
+        roundScoreCount: 2,
+      },
+      {
+        placement: 2,
+        participants: [{ id: 'c', name: 'Charlie' }],
+        accuracy: 94,
+        roundScoreCount: 1,
+      },
+    ])
+    expect(groups.slice(2).every(({ placements }) => placements.length === 0)).toBe(true)
+  })
+
+  it('ranks by the displayed hundredth and combines duplicate score totals', () => {
+    const groups = buildContinentalPlacements(participants, [
+      { participantId: 'a', continent: 'Asia', scoreTotal: 9_495, roundScoreCount: 100 },
+      { participantId: 'b', continent: 'Asia', scoreTotal: 9_495, roundScoreCount: 100 },
+      { participantId: 'b', continent: 'Asia', scoreTotal: 9_496, roundScoreCount: 100 },
+      { participantId: 'c', continent: 'Asia', scoreTotal: 9_494, roundScoreCount: 100 },
+    ])
+
+    expect(groups.find(({ continent }) => continent === 'Asia')?.placements).toEqual([
+      {
+        placement: 1,
+        participants: [{ id: 'b', name: 'Bob' }],
+        accuracy: 94.96,
+        roundScoreCount: 200,
+      },
+      {
+        placement: 2,
+        participants: [{ id: 'a', name: 'Alice' }],
+        accuracy: 94.95,
+        roundScoreCount: 100,
+      },
     ])
   })
 

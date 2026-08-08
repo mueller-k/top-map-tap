@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   captureArchiveDate,
+  enrichPendingLocations,
   insertCollectedDay,
   locationArchiveHealth,
   runDailyLocationArchive,
@@ -61,6 +62,34 @@ describe('location archive persistence', () => {
     expect(result).toEqual({ status: 'covered', date: '2026-01-01' })
     expect(collectDay).not.toHaveBeenCalled()
     expect(database.rows[0].collected_at).toBe('2026-01-02T12:15:00.000Z')
+  })
+
+  it('keeps enrichment Pending when a completed geocoder result lacks Continent', async () => {
+    const database = new ArchiveDatabase()
+    await insertCollectedDay(
+      database.binding,
+      collectedDay({ year: 2026, month: 1, day: 1 }),
+      '2026-01-02T12:15:00.000Z',
+    )
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    try {
+      await expect(enrichPendingLocations(
+        { DB: database.binding, GOOGLE_MAPS_API_KEY: 'secret' },
+        undefined,
+        {
+          geocode: async () => ({
+            status: 'complete',
+            enrichment: { ...enrichment(), continent: null },
+          }),
+        },
+      )).resolves.toEqual({ completedCount: 0, pendingCount: 5 })
+    } finally {
+      log.mockRestore()
+    }
+
+    expect(database.rows.every((row) =>
+      row.enrichment_status === 'pending' && row.continent === null)).toBe(true)
   })
 
   it('does not try to repair an impossible partial date', async () => {

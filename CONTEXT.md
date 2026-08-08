@@ -77,7 +77,7 @@ The point after a MapTap Date has ended in every timezone, when its Round Locati
 _Avoid_: Same-day locations, spoiler window
 
 **Geographic Enrichment**:
-Correctable, structured English-language classification of a Round Location's exact coordinates, rather than the full geographic extent implied by its source label. It comprises nullable Continent, Country or Territory, First-Order Subdivision, Locality, and Feature Types. A country or territory uses a two-letter ISO code when available, and each code maps deterministically to one Continent regardless of the target's coordinates. A classification that legitimately finds no matching geography is complete with absent values; only a failed classification remains eligible for retry. Enrichment does not determine whether the MapTap Date is Location-Covered or change its archived geographic targets.
+Correctable, structured English-language classification of a Round Location's exact coordinates, rather than the full geographic extent implied by its Source Label. A Complete classification always includes Continent, while Country or Territory, First-Order Subdivision, Locality, Feature Types, and Geocoded Match Coordinates may be absent; enrichment does not determine Location Coverage or change the archived geographic target.
 _Avoid_: Round Location, source location, required location data
 
 **Feature Types**:
@@ -100,8 +100,20 @@ _Avoid_: Sovereign state, Continent, nationality
 One of Africa, Antarctica, Asia, Europe, North America, Oceania, or South America. Central America and the Caribbean belong to North America, while Australia and the Pacific island territories belong to Oceania; each Country or Territory maps to exactly one Continent.
 _Avoid_: Region, subcontinent, coordinate-based landmass
 
+**Continent Accuracy**:
+The arithmetic mean of a Participant's Round Scores from prevailing Results for Location-Published Round Locations in one Continent, beginning January 1, 2026 and no later than the Current Date. Ranking compares the hundredth-rounded mean and then qualifying Round Score count, both descending; Round Locations without a Continent and Final Scores are excluded, and any Participant with at least one qualifying Round Score may rank.
+_Avoid_: Continental Final Score, continent win rate, continent total, continent percentage
+
+**Continental Placement**:
+One of the first two distinct tiers formed within a Leaderboard and Continent by ordering Participants by Continent Accuracy and then qualifying Round Score count, both descending. Participants tied on both values share a Placement and are displayed alphabetically without truncation; Placements are dense so the second tier remains second when multiple Participants share the first.
+_Avoid_: Rank, row, slot
+
+**Continental Leader**:
+A Participant in the first Continental Placement for one Leaderboard and Continent. Every Participant sharing that Placement is a joint Continental Leader; alphabetical order affects presentation only.
+_Avoid_: Continent winner, regional champion, user
+
 **Enrichment Status**:
-The state of Geographic Enrichment for a Round Location. Pending means classification has not completed and remains eligible for retry; Complete means classification succeeded, including when no matching geography was found and all enrichment values are absent. Enrichment Status does not affect whether a MapTap Date is Location-Covered.
+The state of Geographic Enrichment for a Round Location. Pending means no classification containing a Continent has completed and remains eligible for retry or manual correction; Complete means Continent is populated, while neither state affects whether a MapTap Date is Location-Covered.
 _Avoid_: Location coverage, provider provenance, enrichment completeness
 
 **Archived Round Location**:

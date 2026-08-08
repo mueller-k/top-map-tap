@@ -21,6 +21,37 @@ export interface Participant {
   name: string
 }
 
+export const CONTINENT_DISPLAY_ORDER = [
+  'North America',
+  'Europe',
+  'Asia',
+  'South America',
+  'Africa',
+  'Oceania',
+  'Antarctica',
+] as const
+
+export type Continent = (typeof CONTINENT_DISPLAY_ORDER)[number]
+
+export interface ContinentScoreTotal {
+  participantId: string
+  continent: Continent
+  scoreTotal: number
+  roundScoreCount: number
+}
+
+export interface ContinentalPlacement {
+  placement: 1 | 2
+  participants: Participant[]
+  accuracy: number
+  roundScoreCount: number
+}
+
+export interface ContinentPlacements {
+  continent: Continent
+  placements: ContinentalPlacement[]
+}
+
 export interface ResultView {
   id: string
   participantId: string
@@ -96,6 +127,7 @@ export interface LeaderboardSnapshot {
   allTimeWins: AllTimeWinRow[]
   hundoHunter: HundoHunterRow[]
   perfectResults: PerfectResultsRow[]
+  continentalPlacements: ContinentPlacements[]
   earliestResultDate: MapTapDate | null
   historyDays: 7 | 30
 }

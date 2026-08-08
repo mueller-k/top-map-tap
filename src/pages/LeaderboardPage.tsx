@@ -19,6 +19,7 @@ import {
   shiftCalendarDate,
   type AllTimeAverageRow,
   type AllTimeWinRow,
+  type ContinentPlacements,
   type HundoHunterRow,
   type LeaderboardSnapshot,
   type LeaderboardRow,
@@ -287,6 +288,7 @@ function Leaderboard({
             days={historyDays}
             onDays={setHistoryDays}
           />
+          <ContinentalLeaders groups={snapshot.continentalPlacements} />
           <div className="all-time-grid">
             <PersonalBests rows={snapshot.personalBests} />
             <PersonalWorsts rows={snapshot.personalWorsts} />
@@ -951,6 +953,76 @@ function PersonalBests({ rows }: { rows: PersonalBestRow[] }) {
         </div>
       </div>
       <RankingTable rows={rows} showDate />
+    </section>
+  );
+}
+
+function ContinentalLeaders({ groups }: { groups: ContinentPlacements[] }) {
+  return (
+    <section className="card widget continental-widget">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Global accuracy</p>
+          <h2>
+            Continental Leaders <span aria-hidden="true">🌍</span>
+          </h2>
+          <p className="muted continental-scope">
+            Average Round Scores from published locations since January 1,
+            2026.
+          </p>
+        </div>
+      </div>
+      <div className="table-wrap">
+        <table aria-label="Top two participant placements by continent accuracy">
+          <thead>
+            <tr>
+              <th>Continent</th>
+              <th>Placement</th>
+              <th>Participant</th>
+              <th>Accuracy</th>
+              <th>Rounds</th>
+            </tr>
+          </thead>
+          <tbody>
+            {groups.flatMap((group) =>
+              group.placements.length === 0
+                ? [
+                    <tr key={group.continent}>
+                      <th className="continent-cell" scope="row">
+                        {group.continent}
+                      </th>
+                      <td className="continental-empty" colSpan={4}>
+                        No qualifying results
+                      </td>
+                    </tr>,
+                  ]
+                : group.placements.map((placement, index) => (
+                    <tr key={`${group.continent}-${placement.placement}`}>
+                      {index === 0 && (
+                        <th
+                          className="continent-cell"
+                          scope="rowgroup"
+                          rowSpan={group.placements.length}
+                        >
+                          {group.continent}
+                        </th>
+                      )}
+                      <td className="placement-cell">
+                        {placement.placement === 1 ? "1st" : "2nd"}
+                      </td>
+                      <td className="continental-participants">
+                        {placement.participants
+                          .map((participant) => participant.name)
+                          .join(", ")}
+                      </td>
+                      <td className="score">{placement.accuracy.toFixed(2)}</td>
+                      <td>{placement.roundScoreCount}</td>
+                    </tr>
+                  )),
+            )}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
