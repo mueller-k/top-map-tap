@@ -12,6 +12,7 @@
 		"preview": "pnpm run build && vite preview",
 		"deploy": "pnpm run build && wrangler deploy",
 		"cf-typegen": "wrangler types",
+		"location-archive:backfill": "node scripts/backfill-round-locations.mjs",
 		"db:migrate:local": "wrangler d1 migrations apply top-map-tap --local",
 		"db:migrate:remote": "wrangler d1 migrations apply top-map-tap --remote"
 	},

@@ -38,6 +38,7 @@ import {
   sessionInsertStatement,
   type Session,
 } from './sessions'
+import { locationArchiveHealth, runDailyLocationArchive } from './location-archive'
 
 const JSON_LIMIT = 8 * 1024
 const CREATE_JSON_LIMIT = 2 * 1024 * 1024
@@ -79,11 +80,23 @@ export default {
       return jsonError('INTERNAL_ERROR', 'Something went wrong. Try again.', 500, url)
     }
   },
+  async scheduled(controller: ScheduledController, env: Env): Promise<void> {
+    try {
+      await runDailyLocationArchive(env, new Date(controller.scheduledTime))
+    } catch (error) {
+      console.error(JSON.stringify({
+        event: 'location_archive_daily_failed',
+        scheduledTime: new Date(controller.scheduledTime).toISOString(),
+        error: error instanceof Error ? error.message : String(error),
+      }))
+    }
+  },
 } satisfies ExportedHandler<Env>
 
 async function routeApi(request: Request, env: Env, url: URL): Promise<Response> {
   if (request.method === 'GET' && url.pathname === '/api/health') {
-    return json({ status: 'ok' }, 200, url)
+    const health = await locationArchiveHealth(env.DB)
+    return json(health, health.status === 'ok' ? 200 : 503, url)
   }
   if (request.method === 'GET' && url.pathname === '/api/config') {
     return json({

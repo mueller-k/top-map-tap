@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "top-map-tap-location-backfill",
+  "main": "worker/location-backfill.ts",
+  "compatibility_date": "2026-06-18",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "top-map-tap",
+      "database_id": "7408561c-2c20-48d9-83de-56186f0ecf74",
+      "preview_database_id": "7408561c-2c20-48d9-83de-56186f0ecf74",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "observability": {
+    "enabled": true,
+    "logs": { "head_sampling_rate": 1 },
+  },
+}

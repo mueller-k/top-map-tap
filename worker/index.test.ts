@@ -28,14 +28,21 @@ beforeAll(() => {
 })
 
 describe('worker', () => {
-  it('serves a minimal health response with security headers', async () => {
+  it('reports a degraded location archive when eligible dates are uncovered', async () => {
+    const database = fakeDatabase()
     const response = await worker.fetch(
       new Request('https://top-map-tap.example/api/health'),
-      {} as Env,
+      { DB: database.binding } as unknown as Env,
     )
 
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({ status: 'ok' })
+    expect(response.status).toBe(503)
+    const body = await response.json() as {
+      status: string
+      locationArchive: { uncoveredDateCount: number; oldestUncoveredDate: string }
+    }
+    expect(body.status).toBe('degraded')
+    expect(body.locationArchive.uncoveredDateCount).toBeGreaterThan(0)
+    expect(body.locationArchive.oldestUncoveredDate).toBe('2026-01-01')
     expect(response.headers.get('cache-control')).toBe('no-store')
     expect(response.headers.get('x-content-type-options')).toBe('nosniff')
     expect(response.headers.get('content-security-policy')).toContain(

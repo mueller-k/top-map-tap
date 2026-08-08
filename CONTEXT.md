@@ -52,6 +52,70 @@ _Avoid_: Submission date, entry date
 One of the five ordered integer scores from 0 through 100 parsed from copied MapTap result text. Symbols surrounding a Round Score carry no meaning.
 _Avoid_: Sub-item score
 
+**Round Location**:
+One of the five ordered geographic targets for a MapTap Date, comprising its Source Label and MapTap Coordinates and paired by position with the corresponding Round Score. It remains a distinct occurrence when a place repeats and excludes any story, trivia, image, or other editorial content associated with the target.
+_Avoid_: Story, place, guessed location
+
+**Source Label**:
+The human-readable geographic name MapTap publishes for a Round Location, excluding any adjacent story headline. After decoding HTML entities, trimming its edges, and collapsing runs of whitespace, its spelling, capitalization, and punctuation otherwise remain unchanged.
+_Avoid_: Geographic Enrichment, normalized place name, story title
+
+**MapTap Coordinates**:
+The finite, in-range latitude and longitude MapTap publishes for a Round Location. They are the immutable, authoritative position used to obtain Geographic Enrichment and remain the sole coordinates that identify the archived target. A date with any missing or invalid MapTap Coordinates is not Location-Covered.
+_Avoid_: Geocoded Match Coordinates, guessed coordinates, corrected coordinates
+
+**Geocoded Match Coordinates**:
+Nullable latitude and longitude returned for the most exact result of a successful Geographic Enrichment. They are retained only as a reference and never replace MapTap Coordinates, drive location statistics, or supply a later enrichment request.
+_Avoid_: MapTap Coordinates, corrected coordinates, authoritative location
+
+**Location-Covered Date**:
+A valid MapTap Date with exactly one Round Location in each ordered position from one through five, collected from a source page that declares the same month, day, and year. Every date on or after January 1, 2026 must become Location-Covered; earlier dates are intentionally outside location coverage.
+_Avoid_: Partially covered date, enriched date
+
+**Location Publication**:
+The point after a MapTap Date has ended in every timezone, when its Round Locations may first affect user-visible views. Round Locations collected earlier remain unavailable to viewers until then.
+_Avoid_: Same-day locations, spoiler window
+
+**Geographic Enrichment**:
+Correctable, structured English-language classification of a Round Location's exact coordinates, rather than the full geographic extent implied by its source label. It comprises nullable Continent, Country or Territory, First-Order Subdivision, Locality, and Feature Types. A country or territory uses a two-letter ISO code when available, and each code maps deterministically to one Continent regardless of the target's coordinates. A classification that legitimately finds no matching geography is complete with absent values; only a failed classification remains eligible for retry. Enrichment does not determine whether the MapTap Date is Location-Covered or change its archived geographic targets.
+_Avoid_: Round Location, source location, required location data
+
+**Feature Types**:
+The set of zero or more classifications assigned to a Round Location by Geographic Enrichment. Multiple types may coexist, and future statistics may group them into broader categories without changing the archived location.
+_Avoid_: Feature category, single location type
+
+**Locality**:
+An English city- or town-scale settlement associated with a Round Location's exact coordinates. A postal town or top-level sublocality may stand in when no formal locality is available, while a county or other administrative region does not qualify.
+_Avoid_: County, First-Order Subdivision, source label
+
+**First-Order Subdivision**:
+The full English name of the primary administrative region containing a Round Location's exact coordinates, such as a state, province, or region. It is interpreted together with the Country or Territory and does not imply a standardized subdivision code.
+_Avoid_: County, subdivision abbreviation, Locality
+
+**Country or Territory**:
+The English country- or territory-level classification containing a Round Location's exact coordinates, paired with its two-letter ISO code when available. A territory remains distinct from its sovereign state for statistics and maps independently to a Continent.
+_Avoid_: Sovereign state, Continent, nationality
+
+**Continent**:
+One of Africa, Antarctica, Asia, Europe, North America, Oceania, or South America. Central America and the Caribbean belong to North America, while Australia and the Pacific island territories belong to Oceania; each Country or Territory maps to exactly one Continent.
+_Avoid_: Region, subcontinent, coordinate-based landmass
+
+**Enrichment Status**:
+The state of Geographic Enrichment for a Round Location. Pending means classification has not completed and remains eligible for retry; Complete means classification succeeded, including when no matching geography was found and all enrichment values are absent. Enrichment Status does not affect whether a MapTap Date is Location-Covered.
+_Avoid_: Location coverage, provider provenance, enrichment completeness
+
+**Archived Round Location**:
+A Round Location retained from its first complete collection after Location Publication. Its MapTap Date, round position, Source Label, MapTap Coordinates, source page reference, and Collection Time are immutable. Geographic Enrichment and Geocoded Match Coordinates may later be manually replaced without changing those archived facts, while routine collection never revisits or corrects them.
+_Avoid_: Live location, synchronized location
+
+**Location Archive**:
+The global collection of Archived Round Locations shared by every Leaderboard. It describes MapTap itself, belongs to no Leaderboard, and is unaffected by Leaderboard Deletion or by the absence of Results for a MapTap Date.
+_Avoid_: Leaderboard data, participant history, score archive
+
+**Collection Time**:
+The server time when all five Round Locations for a MapTap Date are first committed to the Location Archive. The five locations share one Collection Time, which later enrichment attempts do not change.
+_Avoid_: Enrichment time, page publication time, Submission Time
+
 **Hundo**:
 A Round Score of exactly 100 in a prevailing Result. Each such Round Score contributes one Hundo, so one Result may contribute multiple Hundos; Round Scores from replaced Submissions do not count.
 _Avoid_: Perfect Result, 100-point Final Score
