@@ -5,7 +5,7 @@ import {
 } from './domain'
 import { parseMapTapResult } from './parser'
 
-export const MAX_IMPORT_RESULTS = 250
+export const MAX_IMPORT_RESULTS = 1000
 
 export interface GroupMeImportCandidate {
   system: false

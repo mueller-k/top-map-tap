@@ -449,7 +449,7 @@ describe('worker', () => {
 
   it('fits the maximum import within D1 query and binding limits', async () => {
     const database = fakeDatabase()
-    const importCandidates = Array.from({ length: 250 }, (_, index) => {
+    const importCandidates = Array.from({ length: 1000 }, (_, index) => {
       const participant = Math.floor(index / 25)
       const day = index % 25 + 1
       return {
@@ -470,7 +470,7 @@ describe('worker', () => {
         importSource: 'groupme',
         importCandidates,
         importSummary: {
-          resultCount: 250,
+          resultCount: 1000,
           participantNames: Array.from(
             { length: 10 },
             (_, index) => `Participant ${index}`,
