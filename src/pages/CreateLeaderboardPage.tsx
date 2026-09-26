@@ -467,7 +467,7 @@ export function CreateLeaderboardPage() {
                   Tap; unrelated chat messages are not uploaded.
                 </p>
                 <p className="field-hint">
-                  JSON export, up to 10 MB and 250 Results.{" "}
+                  JSON export, up to 10 MB and 1000 Results.{" "}
                   <a
                     className="text-link"
                     href={GROUPME_HELP_URL}
@@ -857,7 +857,7 @@ function importMessage(code: string): string {
   }
   if (code === "NO_RESULTS") return "No MapTap Results found.";
   if (code === "TOO_MANY_RESULTS") {
-    return "This export contains more than 250 Results.";
+    return "This export contains more than 1000 Results.";
   }
   if (code === "TOO_MANY_PARTICIPANTS") {
     return "This export contains more than 25 Participants.";

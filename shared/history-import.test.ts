@@ -159,8 +159,8 @@ describe('processGroupMeExport', () => {
     })
   })
 
-  it('accepts 250 Results and blocks the 251st without truncating', () => {
-    const messages = Array.from({ length: 251 }, (_, index) => {
+  it('accepts 1000 Results and blocks the 1001st without truncating', () => {
+    const messages = Array.from({ length: 1001 }, (_, index) => {
       const participant = Math.floor(index / 25)
       const day = index % 25 + 1
       return userMessage(
@@ -172,10 +172,10 @@ describe('processGroupMeExport', () => {
 
     expect(
       processGroupMeExport(
-        messages.slice(0, 250),
+        messages.slice(0, 1000),
         new Date('2026-06-20T00:00:00Z'),
       ),
-    ).toMatchObject({ ok: true, value: { summary: { resultCount: 250 } } })
+    ).toMatchObject({ ok: true, value: { summary: { resultCount: 1000 } } })
     expect(
       processGroupMeExport(messages, new Date('2026-06-20T00:00:00Z')),
     ).toEqual({ ok: false, code: 'TOO_MANY_RESULTS' })

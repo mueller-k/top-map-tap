@@ -1178,7 +1178,7 @@ function importError(
     return jsonError('NO_IMPORT_RESULTS', 'No MapTap Results found.', 400, url)
   }
   if (code === 'TOO_MANY_RESULTS') {
-    return jsonError('IMPORT_RESULT_LIMIT', 'History import exceeds 250 Results.', 400, url)
+    return jsonError('IMPORT_RESULT_LIMIT', 'History import exceeds 1000 Results.', 400, url)
   }
   if (code === 'TOO_MANY_PARTICIPANTS') {
     return jsonError(
